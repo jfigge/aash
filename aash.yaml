@@ -1,0 +1,174 @@
+hosts:
+  # Bastions
+  - name: Review-Bastion
+    address: ec2-54-245-154-52.us-west-2.compute.amazonaws.com
+    xaddress: 54.245.154.52
+    username: ec2-user
+    identity: /Users/jason/.ssh/pingidp2.pem
+    known_hosts: /Users/jason/.ssh/known_hosts
+  - name: Staging-Bastion
+    address: 35.164.43.75
+    username: ec2-user
+    identity: /Users/jason/.ssh/pingidp2.pem
+    known_hosts: /Users/jason/.ssh/known_hosts
+  - name: Staging-Fedramp-Bastion
+    address: 35.89.225.131
+    username: ec2-user
+    identity: /Users/jason/.ssh/stagingfed.pem
+    known_hosts: /Users/jason/.ssh/known_hosts
+  # Jumped hosts
+  - name: Review Ping A
+    address: 172.21.194.80
+    username: ec2-user
+    identity: /Users/jason/.ssh/pingidp2.pem
+    jump_host: Review-Bastion
+  - name: Staging-Federate
+    address: 172.21.194.171
+    username: ec2-user
+    identity: /Users/jason/.ssh/stagingfed.pem
+    jump_host: Staging-Fedramp-Bastion
+tunnels:
+  # Local
+  - name: Local Vault
+    local: 8200
+    forward: vault.local.innovationlabs.teradata.com:8200
+    color: green
+    mru-color: bright-green
+  # Review
+  - name: Review API Gateway
+    local: 127.0.0.1:8000
+    host: Review-Bastion
+    forward: ccp-internal.gateway.review.innovationlabs.teradata.com:443
+    color: cyan
+    mru-color: bright-cyan
+  - name: Review Postgres
+    local: 0.0.0.0:8432
+    host: Review-Bastion
+    forward: postgres.review.innovationlabs.teradata.com:5432
+    color: cyan
+    mru-color: bright-cyan
+  - name: Review Ping Federate UI
+    local: 8999
+    host: Review-Bastion
+    forward: 172.21.194.80:9999
+    color: cyan
+    mru-color: bright-cyan
+  - name: Review Ping Federate OAuth
+    local: 8031
+    host: Review-Bastion
+    forward: 172.21.194.80:9031
+    color: cyan
+    mru-color: bright-cyan
+  - name: Review Ping Federate Debug
+    local: 8030
+    host: Review-Bastion
+    forward: 172.21.194.80:8787
+    color: cyan
+    mru-color: bright-cyan
+  - name: Vault Review
+    local: 8208
+    host: Review-Bastion
+    forward: vault.internal.teracloud.teradata.com:8200
+    color: cyan
+    mru-color: bright-cyan
+  # Staging
+  - name: Staging API Gateway
+    local: 7000
+    host: Staging-Bastion
+    forward: ccp-internal.gateway.staging.innovationlabs.teradata.com:443
+    color: white
+    mru-color: bright-white
+  - name: Staging Postgres
+    local: 7432
+    host: Staging-Bastion
+    forward: postgres.staging.innovationlabs.teradata.com:5432
+    color: white
+    mru-color: bright-white
+  - name: Staging Ping Federate UI
+    local: 7999
+    host: Staging-Bastion
+    forward: 172.21.194.7:9999
+    color: white
+    mru-color: bright-white
+  - name: Staging Ping Federate OAuth
+    local: 7031
+    host: Staging-Bastion
+    forward: 172.21.194.7:9031
+    color: white
+    mru-color: bright-white
+  - name: Staging Ping Federate Debug
+    local: 7030
+    host: Staging-Bastion
+    forward: 172.21.194.7:8787
+    color: white
+    mru-color: bright-white
+  - name: Vault Staging
+    local: 8207
+    host: Staging-Bastion
+    forward: vault.internal.teracloud.teradata.com:8200
+    color: white
+    mru-color: bright-white
+  # Staging Fedramp
+  - name: Staging Fedramp API Gateway
+    local: 5000
+    host: Staging-Federate
+    forward: ccp-internal.gateway.staging.fed.innovationlabs.teradata.com:443
+    color: yellow
+    mru-color: bright-yellow
+  - name: Staging-Fedramp Postgres
+    local: 4432
+    host: Staging-Federate
+    forward: postgres.staging.fed.innovationlabs.teradata.com:5432
+    color: yellow
+    mru-color: bright-yellow
+  - name: Staging Fedramp Ping Federate UI
+    local: 5999
+    host: Staging-Federate
+    forward: 172.21.194.171:9999
+    color: yellow
+    mru-color: bright-yellow
+  - name: Staging Fedramp Ping Federate OAuth
+    local: 5031
+    host: Staging-Federate
+    forward: 172.21.194.171:9031
+    color: yellow
+    mru-color: bright-yellow
+  - name: Staging Fedramp Ping Federate Debug
+    local: 5030
+    host: Staging-Federate
+    forward: 127.0.0.1:8787
+    color: yellow
+    mru-color: bright-yellow
+  - name: Vault Staging Fedramp
+    local: 8205
+    host: Staging-Fedramp-Bastion
+    forward: vault.internal.teracloud.teradata.com:8200
+    color: yellow
+    mru-color: bright-yellow
+  # LDAP non-prod
+  - name: Non-Prod LDAP Could AD
+    local: 636
+    forward: ldaps.qateradatacloud.com:636
+    color: magenta
+    mru-color: bright-magenta
+  - name: Non-Prod LDAP CS&S
+    local: 1636
+    forward: ldaps.qacustomer.teradata.com:636
+    color: magenta
+    mru-color: bright-magenta
+  - name: Fedramp LDAP CS&S
+    local: 4636
+    host: Staging-Federate
+    forward: cds.fedramp.qateradatacloud.com:636
+    color: magenta
+    mru-color: bright-magenta
+monitor:
+  compressed: true
+  color:
+    enabled: true
+    header: bright-yellow
+    jump-tunnel: grey
+  metrics: [Id, Name, Port, Rcvd, Sent, Open, Jump, Last]
+  units: k
+  order-by: rcvd
+  order-ascending: true
