@@ -6,30 +6,36 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
-	"path"
-	"path/filepath"
+	"os/signal"
+	"runtime"
 	"strings"
+	"syscall"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 	"us.figge.auto-ssh/internal/core/config"
+	"us.figge.auto-ssh/internal/core/flag"
+	"us.figge.auto-ssh/internal/web"
 )
 
 const (
-	envVarPrefix = "TDSH"
+	envVarPrefix = "ASH"
 )
 
 var RootCmd = &cobra.Command{
-	Use:   "assh",
+	Use:   "ash",
 	Short: "auto-ssh command line interface",
 	Long:  `A command line for establishing and managing automatic ssh tunneling`,
 	Run: func(cmd *cobra.Command, args []string) {
-		_ = cmd.Help()
+		if launch() != nil {
+			os.Exit(1)
+		}
 	},
 }
 
@@ -42,9 +48,7 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig, initRootValidate)
-
-	cfg := config.NewConfig()
-	config.Config = cfg
+	flag.AddFlags(RootCmd, web.Flags, flag.Core)
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -76,32 +80,34 @@ func initConfigE() error {
 
 	// Locate the configuration file, if one was provided, or search for one
 	// in the users home directory or the current directory (current first)
-	if config.ConfigFileName != "" {
+	if config.FileName != "" {
 		// Use config file from the flag.
-		v.SetConfigFile(config.ConfigFileName)
+		v.SetConfigFile(config.FileName)
 	} else {
-		var dir string
-		dir, err = os.Getwd()
+		var pwd, home string
+		// Fine current directory
+		pwd, err = os.Getwd()
 		if err != nil {
-			dir = "."
+			pwd = "."
 		}
-		v.AddConfigPath(dir)
+		v.AddConfigPath(pwd)
+		if runtime.GOOS != "windows" {
+			v.AddConfigPath("/etc")
+		}
 
 		// Find home directory.
-		var home string
 		home, err = os.UserHomeDir()
 		cobra.CheckErr(err)
+		v.AddConfigPath(home)
 
-		v.AddConfigPath(path.Join(home, ".td"))
-		v.SetConfigName("config")
-		config.ConfigFileName = filepath.Join(home, ".td", "config.yaml")
+		v.SetConfigName(".auto-ssh")
 	}
 
 	// If we found a configuration file then we need to overlay the defaults with the
 	// content of the config file.
 	err = v.MergeInConfig()
 	if err == nil {
-		config.ConfigFileName = v.ConfigFileUsed()
+		config.FileName = v.ConfigFileUsed()
 	} else {
 		var configFileNotFoundError viper.ConfigFileNotFoundError
 		if !errors.As(err, &configFileNotFoundError) {
@@ -120,8 +126,8 @@ func initConfigE() error {
 	v.SetTypeByDefaultValue(true)
 
 	// alias hyphened names to struct element names
-	v.RegisterAlias("KeysPaths", "Keys")
-	v.RegisterAlias("PassPhrases", "Passphrases")
+	//v.RegisterAlias("KeysPaths", "Keys")
+	//v.RegisterAlias("PassPhrases", "Passphrases")
 
 	// Finally, we bind viper configs to cobra flags.  If a flag wasn't specified then
 	// we set its value to the viper config value, and when a flag was set then we
@@ -151,8 +157,8 @@ func initConfigE() error {
 
 	// Now that everything has been layered in the correct order we generate the
 	// final configuration and make this available for all to use.
-	config.Config = &config.Configuration{}
-	err = v.Unmarshal(&config.Config)
+	config.C = &config.Configuration{}
+	err = v.Unmarshal(&config.C)
 	if err != nil {
 		return err
 	}
@@ -191,5 +197,33 @@ func initRootValidate() {
 
 // initRootValidateE
 func initRootValidateE() error {
-	return config.Validate(config.Config)
+	validations := config.C.Validate()
+	return validations.Output(fmt.Errorf("invalid configuration: %s", config.FileName))
+}
+
+func launch() error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	server, err := web.NewServer(config.C.Web)
+	if err != nil {
+		return err
+	}
+
+	cleanup := func(exitCode int) {
+		server.Shutdown()
+		cancel()
+		os.Exit(exitCode)
+	}
+
+	_, err = server.Serve(ctx)
+	if err != nil {
+		return err
+	}
+
+	sigchan := make(chan os.Signal, 1)
+	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
+	<-sigchan
+	fmt.Printf("system-service: received signal. Shutting down\n")
+	cleanup(0)
+	return nil
 }

@@ -1,0 +1,25 @@
+/*
+ * Copyright (C) 2024 by Jason Figge
+ */
+
+package monitor
+
+import (
+	"github.com/spf13/cobra"
+	"us.figge.auto-ssh/internal/cmd"
+	"us.figge.auto-ssh/internal/core/flag"
+)
+
+var launcherMonitorCmd = &cobra.Command{
+	Use:    "monitor",
+	Short:  "launches auto-ssh monitor CLI",
+	Hidden: true,
+	Run: func(cmd *cobra.Command, args []string) {
+		_ = cmd.Help()
+	},
+}
+
+func init() {
+	flag.AddFlags(launcherMonitorCmd, flag.Core)
+	cmd.RootCmd.AddCommand(launcherMonitorCmd)
+}

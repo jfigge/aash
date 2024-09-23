@@ -6,11 +6,11 @@ GO                        = go
 BUILD_TYPE                = prod
 
 # build output
-BINARY           ?= ${PROJECT_NAME}x
+BINARY           ?= ${PROJECT_NAME}
 BUILD_IMAGE_NAME ?= ${PROJECT_GROUP}/$PROJECT_NAME}
 BUILD_NUMBER     = $(shell git rev-list --count HEAD)
 BUILD_RELEASE    ?= "false"
-TARGET           ?= us.figge.assh
+TARGET           ?= us.figge.auto-ssh
 
 # workspace
 WORKSPACE ?= $(realpath $(dir $(realpath $(firstword $(MAKEFILE_LIST)))))

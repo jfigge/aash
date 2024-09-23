@@ -24,7 +24,7 @@ func Curl(cmd *cobra.Command) {
 }
 
 func Config(cmd *cobra.Command) {
-	cmd.Flags().StringVarP(&config.ConfigFileName, "config", "c", "", "optional configuration file")
+	cmd.Flags().StringVarP(&config.FileName, "config", "c", "", "optional configuration file")
 }
 
 func Prompt(cmd *cobra.Command) {
@@ -49,4 +49,11 @@ func Rest(cmd *cobra.Command) {
 func Default(cmd *cobra.Command) {
 	Config(cmd)
 	Rest(cmd)
+}
+
+// Core adds: Config Verbose Prompt
+func Core(cmd *cobra.Command) {
+	Config(cmd)
+	Verbose(cmd)
+	Prompt(cmd)
 }
