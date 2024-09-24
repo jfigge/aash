@@ -10,11 +10,14 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/user"
 
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
 	"us.figge.auto-ssh/internal/core/config"
+	engineModels "us.figge.auto-ssh/internal/resources/models"
+	"us.figge.auto-ssh/internal/web/managers"
+	managerModels "us.figge.auto-ssh/internal/web/models"
+	"us.figge.auto-ssh/internal/web/rest"
 )
 
 var (
@@ -22,20 +25,34 @@ var (
 )
 
 type Server struct {
-	webCfg     *config.Web
-	httpServer *http.Server
+	webCfg        *config.Web
+	httpServer    *http.Server
+	hostManager   managerModels.Host
+	tunnelManager managerModels.Tunnel
 }
 
-func NewServer(web *config.Web) (*Server, error) {
-	server := &Server{
+func NewServer(
+	ctx context.Context,
+	web *config.Web,
+	hosts engineModels.Host,
+	tunnels engineModels.Tunnel,
+) (*Server, error) {
+	s := &Server{
 		webCfg: cliArgs.Merge(web),
 	}
-	v := server.Validate()
-	err := v.Output(fmt.Errorf("invalid server configuration"))
+	v := s.Validate()
+	err := v.Output(fmt.Errorf("failed to validate server configuration"))
 	if err != nil {
 		return nil, err
 	}
-	return server, nil
+
+	hostMgr, tunnelMgr := s.startManagers(ctx, hosts, tunnels)
+	routers := s.startHandlers(ctx, hostMgr, tunnelMgr)
+	err = s.Serve(ctx, routers)
+	if err != nil {
+		return nil, err
+	}
+	return s, nil
 }
 
 func Flags(cmd *cobra.Command) {
@@ -47,64 +64,6 @@ func Flags(cmd *cobra.Command) {
 }
 
 // routes map[string]http.Handler
-func (s *Server) Serve(ctx context.Context) (string, error) {
-	listenAddress := fmt.Sprintf("%s:%d", s.webCfg.Address, s.webCfg.Port)
-	//nolint: gosec
-	s.httpServer = &http.Server{
-		Handler: s.buildRoutes(),
-	}
-	ln, err := net.Listen("tcp", listenAddress)
-	if err != nil {
-		return "", err
-	}
-
-	if s.webCfg.CertificateFile != "" {
-		certFile := s.webCfg.CertificateFile
-		keyFile := s.webCfg.CertificateKey
-		go s.serveHTTPS(ln, listenAddress, certFile, keyFile)
-	} else {
-		go s.serveHTTP(ln, listenAddress)
-	}
-	return ln.Addr().String(), nil
-}
-
-func (s *Server) buildRoutes() http.Handler {
-	r := mux.NewRouter()
-	r.HandleFunc("/health", func(writer http.ResponseWriter, request *http.Request) {
-		fmt.Printf("Serving: /health\n")
-		currentUser, _ := user.Current()
-		fmt.Fprintf(writer, "hello, %s", currentUser.Name)
-	})
-	return r
-}
-
-func (s *Server) serveHTTPS(ln net.Listener, listenAddress, certFile, keyFile string) {
-	fmt.Printf("Listening on https -> %s\n", listenAddress)
-	err := s.httpServer.ServeTLS(ln, certFile, keyFile)
-	if err != nil {
-		fmt.Printf("web server has shut down: %v\n", err)
-	}
-}
-
-func (s *Server) serveHTTP(ln net.Listener, listenAddress string) {
-	fmt.Printf("Listening on http -> %s\n", listenAddress)
-	err := s.httpServer.Serve(ln)
-	if err != nil {
-		fmt.Printf("web server has shut down: %v\n", err)
-	}
-}
-
-func (s *Server) Shutdown() {
-	if s.httpServer != nil {
-		err := s.httpServer.Shutdown(context.Background())
-		if err != nil {
-			fmt.Printf("error shutting down web server: %v", err)
-		}
-		s.httpServer = nil
-		fmt.Printf("server is shut down\n")
-	}
-}
-
 func (s *Server) Validate() config.Validations {
 	v := config.NewValidations()
 	if s.webCfg.Port != 0 {
@@ -117,7 +76,6 @@ func (s *Server) Validate() config.Validations {
 	}
 	return v
 }
-
 func (s *Server) validateWebAddress(v *config.Validations) {
 	// Prepare format of ip address
 	if s.webCfg.Address == "" {
@@ -152,7 +110,6 @@ func (s *Server) validateWebAddress(v *config.Validations) {
 	}
 	v.Errorf("web.address must be a valid address on the host")
 }
-
 func (s *Server) validatePort(v *config.Validations) {
 	if s.webCfg.Port < 0 {
 		v.Errorf("web.port cannot be negative")
@@ -166,7 +123,6 @@ func (s *Server) validatePort(v *config.Validations) {
 		}
 	}
 }
-
 func (s *Server) validateCertFile(v *config.Validations) {
 	if s.webCfg.CertificateFile == "" {
 		v.Warnf("web.certificate_file not set.  auto.ssh web server will use http")
@@ -182,7 +138,6 @@ func (s *Server) validateCertFile(v *config.Validations) {
 		v.Errorf("web.certificate_file cannot be read: %v", err)
 	}
 }
-
 func (s *Server) validateCertKey(v *config.Validations) {
 	if s.webCfg.CertificateFile == "" {
 		return
@@ -198,5 +153,83 @@ func (s *Server) validateCertKey(v *config.Validations) {
 	}
 	if _, err := os.ReadFile(s.webCfg.CertificateKey); err != nil {
 		v.Errorf("web.certificate_key cannot be read: %v", err)
+	}
+}
+
+func (s *Server) startManagers(
+	ctx context.Context, hosts engineModels.Host, tunnels engineModels.Tunnel,
+) (managerModels.Host, managerModels.Tunnel) {
+	hostManager, tunnelManager, err := s.startManagersE(ctx, hosts, tunnels)
+	if err != nil {
+		fmt.Printf("failed to start managers: %v\n", err)
+		os.Exit(1)
+	}
+	return hostManager, tunnelManager
+}
+func (s *Server) startManagersE(
+	ctx context.Context, hosts engineModels.Host, tunnels engineModels.Tunnel,
+) (hostManager managerModels.Host, tunnelManager managerModels.Tunnel, err error) {
+	hostManager, err = managers.NewHostManager(ctx, hosts)
+	if err != nil {
+		return
+	}
+	s.tunnelManager, err = managers.NewTunnelManager(ctx, tunnels)
+	if err != nil {
+		return
+	}
+	return
+}
+
+func (s *Server) startHandlers(
+	ctx context.Context, hostManager managerModels.Host, tunnelManager managerModels.Tunnel,
+) *mux.Router {
+	routes := mux.NewRouter()
+	rest.NewHostRest(ctx, hostManager, routes)
+	rest.NewTunnelRest(ctx, tunnelManager, routes)
+	return routes
+}
+
+func (s *Server) Serve(ctx context.Context, routes *mux.Router) error {
+	listenAddress := fmt.Sprintf("%s:%d", s.webCfg.Address, s.webCfg.Port)
+	//nolint: gosec
+	s.httpServer = &http.Server{
+		Handler: routes,
+	}
+	ln, err := net.Listen("tcp", listenAddress)
+	if err != nil {
+		return err
+	}
+
+	if s.webCfg.CertificateFile != "" {
+		certFile := s.webCfg.CertificateFile
+		keyFile := s.webCfg.CertificateKey
+		go s.serveHTTPS(ln, listenAddress, certFile, keyFile)
+	} else {
+		go s.serveHTTP(ln, listenAddress)
+	}
+	return nil
+}
+func (s *Server) serveHTTPS(ln net.Listener, listenAddress, certFile, keyFile string) {
+	fmt.Printf("Listening on https -> %s\n", listenAddress)
+	err := s.httpServer.ServeTLS(ln, certFile, keyFile)
+	if err != nil {
+		fmt.Printf("web server has shut down: %v\n", err)
+	}
+}
+func (s *Server) serveHTTP(ln net.Listener, listenAddress string) {
+	fmt.Printf("Listening on http -> %s\n", listenAddress)
+	err := s.httpServer.Serve(ln)
+	if err != nil {
+		fmt.Printf("web server has shut down: %v\n", err)
+	}
+}
+func (s *Server) Shutdown() {
+	if s.httpServer != nil {
+		err := s.httpServer.Shutdown(context.Background())
+		if err != nil {
+			fmt.Printf("error shutting down web server: %v", err)
+		}
+		s.httpServer = nil
+		fmt.Printf("server is shut down\n")
 	}
 }

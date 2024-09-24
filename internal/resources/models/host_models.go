@@ -2,15 +2,16 @@
  * Copyright (C) 2024 by Jason Figge
  */
 
-package engine
+package models
 
 import (
-	"context"
-
 	"us.figge.auto-ssh/internal/core/config"
 )
 
-type Host struct {
+type Host interface {
+}
+
+type HostEntry struct {
 	Name       string
 	Group      string
 	Address    string
@@ -19,9 +20,4 @@ type Host struct {
 	KnownHosts string
 	JumpHost   string
 	Metadata   *config.Metadata
-}
-
-func NewHostEngine(ctx context.Context, cfg config.Host) (*Host, error) {
-	engine := &Host{}
-	return engine, nil
 }

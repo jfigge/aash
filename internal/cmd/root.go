@@ -21,6 +21,8 @@ import (
 	"gopkg.in/yaml.v3"
 	"us.figge.auto-ssh/internal/core/config"
 	"us.figge.auto-ssh/internal/core/flag"
+	engine2 "us.figge.auto-ssh/internal/resources/engine"
+	engineModels "us.figge.auto-ssh/internal/resources/models"
 	"us.figge.auto-ssh/internal/web"
 )
 
@@ -28,14 +30,22 @@ const (
 	envVarPrefix = "ASH"
 )
 
+var (
+	ctx     context.Context
+	cancel  context.CancelFunc
+	server  *web.Server
+	hosts   engineModels.Host
+	tunnels engineModels.Tunnel
+)
+
 var RootCmd = &cobra.Command{
 	Use:   "ash",
 	Short: "auto-ssh command line interface",
 	Long:  `A command line for establishing and managing automatic ssh tunneling`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if launch() != nil {
-			os.Exit(1)
-		}
+		startEngines()
+		startServer()
+		startApplication()
 	},
 }
 
@@ -47,19 +57,16 @@ func Execute() {
 }
 
 func init() {
-	cobra.OnInitialize(initConfig, initRootValidate)
+	cobra.OnInitialize(initContext, initConfig)
 	flag.AddFlags(RootCmd, web.Flags, flag.Core)
 }
 
-// initConfig reads in config file and ENV variables if set.
 func initConfig() {
 	if err := initConfigE(); err != nil {
-		fmt.Printf("Failed to load configuration: %v\n", err)
+		fmt.Printf("Failed to initialize configuration: %v\n", err)
 		os.Exit(1)
 	}
 }
-
-// initConfigE
 func initConfigE() error {
 	// Set the tone early and let viper know we're using yaml
 	v := viper.New()
@@ -165,7 +172,6 @@ func initConfigE() error {
 
 	return nil
 }
-
 func merge(array1 []string, array2 []interface{}) []string {
 	combined := append([]string{}, array1...)
 	for _, tmp := range array2 {
@@ -187,37 +193,49 @@ func merge(array1 []string, array2 []interface{}) []string {
 	return combined
 }
 
-// initRootValidate reads in config file and ENV variables if set.
-func initRootValidate() {
-	if err := initRootValidateE(); err != nil {
-		fmt.Printf("failed to validate root configuration: %v\n", err)
+func initContext() {
+	ctx, cancel = context.WithCancel(context.Background())
+}
+
+func startEngines() {
+	if err := startEnginesE(); err != nil {
+		fmt.Printf("failed to start engines: %v\n", err)
 		os.Exit(1)
 	}
 }
-
-// initRootValidateE
-func initRootValidateE() error {
-	validations := config.C.Validate()
-	return validations.Output(fmt.Errorf("invalid configuration: %s", config.FileName))
-}
-
-func launch() error {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	server, err := web.NewServer(config.C.Web)
+func startEnginesE() error {
+	var err error
+	hosts, err = engine2.NewHostEngine(ctx, config.C.Hosts)
 	if err != nil {
 		return err
 	}
+	tunnels, err = engine2.NewTunnelEngine(ctx, config.C.Tunnels)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
+func startServer() {
+	if err := startServerE(); err != nil {
+		fmt.Printf("failed to start server: %v\n", err)
+		os.Exit(1)
+	}
+}
+func startServerE() error {
+	var err error
+	server, err = web.NewServer(ctx, config.C.Web, hosts, tunnels)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func startApplication() {
 	cleanup := func(exitCode int) {
 		server.Shutdown()
 		cancel()
 		os.Exit(exitCode)
-	}
-
-	_, err = server.Serve(ctx)
-	if err != nil {
-		return err
 	}
 
 	sigchan := make(chan os.Signal, 1)
@@ -225,5 +243,5 @@ func launch() error {
 	<-sigchan
 	fmt.Printf("system-service: received signal. Shutting down\n")
 	cleanup(0)
-	return nil
+
 }

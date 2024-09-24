@@ -7,46 +7,57 @@ package managers
 import (
 	"context"
 
+	engineModels "us.figge.auto-ssh/internal/resources/models"
 	"us.figge.auto-ssh/internal/web/models"
 )
 
-type HostOptionFunc func(options *HostOptions)
-type HostOptions struct{}
-type Host struct{}
+type HostManager struct {
+	hosts engineModels.Host
+}
 
-func NewHostManager() (*Host, error) {
-	manager := &Host{}
+func NewHostManager(ctx context.Context, hosts engineModels.Host) (*HostManager, error) {
+	manager := &HostManager{
+		hosts: hosts,
+	}
 	return manager, nil
 }
 
-func (m *Host) List(
+func (m *HostManager) List(
 	ctx context.Context,
 	input *models.ListHostInput,
-	options ...HostOptionFunc,
+	options ...models.HostOptionFunc,
 ) (*models.ListHostOutput, error) {
 	return nil, nil
 }
 
-func (m *Host) Get(
+func (m *HostManager) Get(
 	ctx context.Context,
 	input *models.GetHostInput,
-	options ...HostOptionFunc,
+	options ...models.HostOptionFunc,
 ) (*models.GetHostOutput, error) {
 	return nil, nil
 }
 
-func (m *Host) Add(
+func (m *HostManager) Add(
 	ctx context.Context,
 	input *models.AddHostInput,
-	options ...HostOptionFunc,
+	options ...models.HostOptionFunc,
 ) (*models.AddHostOutput, error) {
 	return nil, nil
 }
 
-func (m *Host) Remove(
+func (m *HostManager) Update(
+	ctx context.Context,
+	input *models.UpdateHostInput,
+	options ...models.HostOptionFunc,
+) (*models.UpdateHostOutput, error) {
+	return nil, nil
+}
+
+func (m *HostManager) Remove(
 	ctx context.Context,
 	input *models.RemoveHostInput,
-	options ...HostOptionFunc,
+	options ...models.HostOptionFunc,
 ) (*models.RemoveHostOutput, error) {
 	return nil, nil
 }

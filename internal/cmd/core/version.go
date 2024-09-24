@@ -46,7 +46,7 @@ func version(cmd *cobra.Command) error {
 			time.Now().Format(time.DateTime),
 		)
 	} else {
-		fmt.Printf("%s verison %s %s/%s",
+		fmt.Printf("%s verison %s %s/%s\n",
 			os.Args[0],
 			config.Version,
 			runtime.GOOS,
