@@ -38,18 +38,18 @@ type Host struct {
 	Address    string    `yaml:"address" json:"address"`
 	Username   string    `yaml:"username" json:"username"`
 	Identity   string    `yaml:"identity" json:"identity"`
-	KnownHosts string    `yaml:"known-hosts" json:"known-hosts"`
-	JumpHost   string    `yaml:"jump-host" json:"jump-host"`
+	KnownHosts string    `yaml:"known-hosts" json:"knownHosts"`
+	JumpHost   string    `yaml:"jump-host" json:"jumpHost"`
 	Metadata   *Metadata `yaml:"metadata,omitempty" json:"metadata,omitempty"`
 }
 
 type Tunnel struct {
 	Name          string    `yaml:"name" json:"name"`
 	Group         string    `yaml:"group,omitempty" json:"group,omitempty"`
-	LocalPort     uint16    `yaml:"local-port" json:"local-port"`
-	RemoteAddress string    `yaml:"remote-address" json:"remote-address"`
-	RemotePort    uint16    `yaml:"remote-port" json:"remote-port"`
-	JumpHost      string    `yaml:"jump-host,omitempty" json:"jump-host,omitempty"`
+	LocalPort     uint16    `yaml:"local-port" json:"localPort"`
+	RemoteAddress string    `yaml:"remote-address" json:"remoteAddress"`
+	RemotePort    uint16    `yaml:"remote-port" json:"remotePort"`
+	JumpHost      string    `yaml:"jump-host,omitempty" json:"jumpHost,omitempty"`
 	Metadata      *Metadata `yaml:"metadata,omitempty" json:"metadata,omitempty"`
 }
 
@@ -61,7 +61,7 @@ type Metadata struct {
 type Monitor struct {
 	Compressed bool         `yaml:"compressed,omitempty" json:"compressed,omitempty"`
 	Metrics    []string     `yaml:"metrics,omitempty" json:"metrics,omitempty"`
-	SortOrder  []*SortOrder `yaml:"sort-order,omitempty" json:"sort-order,omitempty"`
+	SortOrder  []*SortOrder `yaml:"sort-order,omitempty" json:"sortOrder,omitempty"`
 }
 
 type SortOrder struct {

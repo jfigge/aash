@@ -6,9 +6,14 @@ package managers
 
 import (
 	"context"
+	"fmt"
 
 	engineModels "us.figge.auto-ssh/internal/resources/models"
 	"us.figge.auto-ssh/internal/web/models"
+)
+
+var (
+	ErrHostNotFound = fmt.Errorf("host not found")
 )
 
 type HostManager struct {
@@ -27,7 +32,13 @@ func (m *HostManager) List(
 	input *models.ListHostInput,
 	options ...models.HostOptionFunc,
 ) (*models.ListHostOutput, error) {
-	return nil, nil
+	output := &models.ListHostOutput{}
+	for _, host := range m.hosts.Hosts() {
+		output.Items = append(output.Items, *host)
+	}
+	output.Count = len(output.Items)
+	output.More = nil
+	return output, nil
 }
 
 func (m *HostManager) Get(

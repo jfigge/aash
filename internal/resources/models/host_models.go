@@ -9,15 +9,5 @@ import (
 )
 
 type Host interface {
-}
-
-type HostEntry struct {
-	Name       string
-	Group      string
-	Address    string
-	Username   string
-	Identity   string
-	KnownHosts string
-	JumpHost   string
-	Metadata   *config.Metadata
+	Hosts() []*config.Host
 }

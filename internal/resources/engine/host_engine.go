@@ -8,14 +8,19 @@ import (
 	"context"
 
 	"us.figge.auto-ssh/internal/core/config"
-	"us.figge.auto-ssh/internal/resources/models"
 )
 
 type HostEngine struct {
-	hosts []*models.HostEntry
+	hosts []*config.Host
 }
 
 func NewHostEngine(ctx context.Context, cfg []*config.Host) (*HostEngine, error) {
-	engine := &HostEngine{}
+	engine := &HostEngine{
+		hosts: cfg,
+	}
 	return engine, nil
+}
+
+func (h HostEngine) Hosts() []*config.Host {
+	return h.hosts
 }

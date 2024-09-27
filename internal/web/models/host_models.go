@@ -6,6 +6,8 @@ package models
 
 import (
 	"context"
+
+	"us.figge.auto-ssh/internal/core/config"
 )
 
 type HostOptionFunc func(options *HostOptions)
@@ -38,8 +40,16 @@ type Host interface {
 	) (*RemoveHostOutput, error)
 }
 
-type ListHostInput struct{}
-type ListHostOutput struct{}
+type ListHostInput struct {
+	More     *string `json:"more,omitempty"`
+	PageSize *int    `json:"pageSize,omitempty"`
+	Page     *int    `json:"page,omitempty"`
+}
+type ListHostOutput struct {
+	Count int           `json:"count"`
+	Items []config.Host `json:"items"`
+	More  *string       `json:"more,omitempty"`
+}
 
 type GetHostInput struct{}
 type GetHostOutput struct{}
