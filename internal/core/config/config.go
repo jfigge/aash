@@ -44,13 +44,12 @@ type Host struct {
 }
 
 type Tunnel struct {
-	Name          string    `yaml:"name" json:"name"`
-	Group         string    `yaml:"group,omitempty" json:"group,omitempty"`
-	LocalPort     uint16    `yaml:"local-port" json:"localPort"`
-	RemoteAddress string    `yaml:"remote-address" json:"remoteAddress"`
-	RemotePort    uint16    `yaml:"remote-port" json:"remotePort"`
-	JumpHost      string    `yaml:"jump-host,omitempty" json:"jumpHost,omitempty"`
-	Metadata      *Metadata `yaml:"metadata,omitempty" json:"metadata,omitempty"`
+	Name     string    `yaml:"name" json:"name"`
+	Group    string    `yaml:"group,omitempty" json:"group,omitempty"`
+	Local    string    `yaml:"local" json:"local"`
+	Remote   string    `yaml:"remote" json:"remote"`
+	JumpHost string    `yaml:"jump-host,omitempty" json:"jumpHost,omitempty"`
+	Metadata *Metadata `yaml:"metadata,omitempty" json:"metadata,omitempty"`
 }
 
 type Metadata struct {

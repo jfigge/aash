@@ -173,7 +173,7 @@ func (s *Server) startManagersE(
 	if err != nil {
 		return
 	}
-	s.tunnelManager, err = managers.NewTunnelManager(ctx, tunnels)
+	tunnelManager, err = managers.NewTunnelManager(ctx, tunnels)
 	if err != nil {
 		return
 	}

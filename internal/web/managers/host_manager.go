@@ -7,7 +7,10 @@ package managers
 import (
 	"context"
 	"fmt"
+	"slices"
+	"strings"
 
+	"us.figge.auto-ssh/internal/core/config"
 	engineModels "us.figge.auto-ssh/internal/resources/models"
 	"us.figge.auto-ssh/internal/web/models"
 )
@@ -34,7 +37,7 @@ func (m *HostManager) List(
 ) (*models.ListHostOutput, error) {
 	output := &models.ListHostOutput{}
 	for _, host := range m.hosts.Hosts() {
-		output.Items = append(output.Items, *host)
+		output.Items = append(output.Items, host)
 	}
 	output.Count = len(output.Items)
 	output.More = nil
@@ -71,4 +74,32 @@ func (m *HostManager) Remove(
 	options ...models.HostOptionFunc,
 ) (*models.RemoveHostOutput, error) {
 	return nil, nil
+}
+
+func hostFilter(filters []*models.Filter, host *config.Host) bool {
+	for _, filter := range filters {
+		match := false
+		switch strings.ToLower(filter.Key) {
+		case "name":
+			match = slices.Contains(filter.Values, host.Name)
+		case "group":
+			match = slices.Contains(filter.Values, host.Group)
+		case "address":
+			match = slices.Contains(filter.Values, host.Address)
+		case "username":
+			match = slices.Contains(filter.Values, host.Username)
+		case "identity":
+			match = slices.Contains(filter.Values, host.Identity)
+		case "known-hosts", "knownHosts":
+			match = slices.Contains(filter.Values, host.KnownHosts)
+		case "jump-host", "jumpHost":
+			match = slices.Contains(filter.Values, host.JumpHost)
+		case "metadata.color":
+			match = host.Metadata != nil && slices.Contains(filter.Values, host.Metadata.Color)
+		}
+		if !match {
+			return false
+		}
+	}
+	return true
 }

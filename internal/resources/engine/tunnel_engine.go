@@ -8,14 +8,19 @@ import (
 	"context"
 
 	"us.figge.auto-ssh/internal/core/config"
-	"us.figge.auto-ssh/internal/resources/models"
 )
 
 type TunnelEngine struct {
-	tunnels []*models.TunnelEntry
+	tunnels []*config.Tunnel
 }
 
 func NewTunnelEngine(ctx context.Context, cfg []*config.Tunnel) (*TunnelEngine, error) {
-	engine := &TunnelEngine{}
+	engine := &TunnelEngine{
+		tunnels: cfg,
+	}
 	return engine, nil
+}
+
+func (t TunnelEngine) Tunnels() []*config.Tunnel {
+	return t.tunnels
 }

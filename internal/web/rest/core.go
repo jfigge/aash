@@ -13,19 +13,19 @@ import (
 	"net/http"
 	"reflect"
 
+	"us.figge.auto-ssh/internal/core/utils"
 	"us.figge.auto-ssh/internal/web/managers"
-	managerModels "us.figge.auto-ssh/internal/web/models"
+)
+
+var (
+	defaultPage     = utils.Ptr(1)
+	defaultPageSize = utils.Ptr(100)
 )
 
 var (
 	ErrWriterFlush  = fmt.Errorf("unable to flush writer")
 	ErrEncodeOutput = fmt.Errorf("failed to encode output")
 )
-
-func extractOptions(req *http.Request) []managerModels.HostOptionFunc {
-	var options []managerModels.HostOptionFunc
-	return options
-}
 
 func handleErrorResponse(resp http.ResponseWriter, err error) {
 	httpStatus := http.StatusInternalServerError

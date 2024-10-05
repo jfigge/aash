@@ -36,13 +36,14 @@ func NewHostRest(ctx context.Context, manager managerModels.Host, router *mux.Ro
 func (a *HostRest) ListHosts(resp http.ResponseWriter, req *http.Request) {
 	input := &managerModels.ListHostInput{}
 	if req.Body != http.NoBody {
-		err := json.NewDecoder(req.Body).Decode(input)
+		err := json.NewDecoder(req.Body).Decode(&input)
 		if err != nil {
 			resp.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		input.Validate()
 	}
-	output, err := a.manager.List(req.Context(), input, extractOptions(req)...)
+	output, err := a.manager.List(req.Context(), input, extractHostOptions(req)...)
 	if err != nil {
 		handleErrorResponse(resp, err)
 		return
@@ -53,12 +54,12 @@ func (a *HostRest) ListHosts(resp http.ResponseWriter, req *http.Request) {
 func (a *HostRest) GetHost(resp http.ResponseWriter, req *http.Request) {
 	input := &managerModels.GetHostInput{}
 	if req.Body != http.NoBody {
-		err := json.NewDecoder(req.Body).Decode(input)
+		err := json.NewDecoder(req.Body).Decode(&input)
 		if err != nil {
 			resp.WriteHeader(http.StatusBadRequest)
 		}
 	}
-	output, err := a.manager.Get(req.Context(), input, extractOptions(req)...)
+	output, err := a.manager.Get(req.Context(), input, extractHostOptions(req)...)
 	if err != nil {
 		handleErrorResponse(resp, err)
 	}
@@ -67,33 +68,38 @@ func (a *HostRest) GetHost(resp http.ResponseWriter, req *http.Request) {
 
 func (a *HostRest) AddHost(resp http.ResponseWriter, req *http.Request) {
 	input := &managerModels.AddHostInput{}
-	err := json.NewDecoder(req.Body).Decode(input)
+	err := json.NewDecoder(req.Body).Decode(&input)
 	if err != nil {
 		resp.WriteHeader(http.StatusBadRequest)
 	}
-	_, err = a.manager.Add(req.Context(), input, extractOptions(req)...)
+	_, err = a.manager.Add(req.Context(), input, extractHostOptions(req)...)
 	hostName := mux.Vars(req)[HostName]
 	resp.Write([]byte(fmt.Sprintf("AddHost: " + hostName)))
 }
 
 func (a *HostRest) UpdateHost(resp http.ResponseWriter, req *http.Request) {
 	input := &managerModels.UpdateHostInput{}
-	err := json.NewDecoder(req.Body).Decode(input)
+	err := json.NewDecoder(req.Body).Decode(&input)
 	if err != nil {
 		resp.WriteHeader(http.StatusBadRequest)
 	}
-	_, err = a.manager.Update(req.Context(), input, extractOptions(req)...)
+	_, err = a.manager.Update(req.Context(), input, extractHostOptions(req)...)
 	hostName := mux.Vars(req)[HostName]
 	resp.Write([]byte(fmt.Sprintf("UpdateHost: " + hostName)))
 }
 
 func (a *HostRest) RemoveHost(resp http.ResponseWriter, req *http.Request) {
 	input := &managerModels.RemoveHostInput{}
-	err := json.NewDecoder(req.Body).Decode(input)
+	err := json.NewDecoder(req.Body).Decode(&input)
 	if err != nil {
 		resp.WriteHeader(http.StatusBadRequest)
 	}
-	_, err = a.manager.Remove(req.Context(), input, extractOptions(req)...)
+	_, err = a.manager.Remove(req.Context(), input, extractHostOptions(req)...)
 	hostName := mux.Vars(req)[HostName]
 	resp.Write([]byte(fmt.Sprintf("RemoveHost: " + hostName)))
+}
+
+func extractHostOptions(req *http.Request) []managerModels.HostOptionFunc {
+	var options []managerModels.HostOptionFunc
+	return options
 }

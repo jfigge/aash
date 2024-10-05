@@ -9,14 +9,15 @@ import (
 )
 
 type Tunnel interface {
+	Tunnels() []*config.Tunnel
 }
 
-type TunnelEntry struct {
-	Name          string
-	Group         string
-	LocalPort     uint16
-	RemoteAddress string
-	RemotePort    uint16
-	JumpTunnel    string
-	Metadata      *config.Metadata
-}
+//type TunnelEntry struct {
+//	Name          string
+//	Group         string
+//	LocalPort     uint16
+//	RemoteAddress string
+//	RemotePort    uint16
+//	JumpTunnel    string
+//	Metadata      *config.Metadata
+//}

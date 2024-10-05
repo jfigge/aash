@@ -6,6 +6,8 @@ package models
 
 import (
 	"context"
+
+	"us.figge.auto-ssh/internal/core/config"
 )
 
 type TunnelOptionFunc func(options *TunnelOptions)
@@ -48,8 +50,15 @@ type Tunnel interface {
 	) (*StopTunnelOutput, error)
 }
 
-type ListTunnelInput struct{}
-type ListTunnelOutput struct{}
+type ListTunnelInput struct {
+	*Pagination
+	Filter []*Filter `json:"filter,omitempty"`
+}
+type ListTunnelOutput struct {
+	Count int              `json:"count"`
+	Items []*config.Tunnel `json:"items,omitempty"`
+	More  *string          `json:"more,omitempty"`
+}
 
 type GetTunnelInput struct{}
 type GetTunnelOutput struct{}

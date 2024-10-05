@@ -41,14 +41,13 @@ type Host interface {
 }
 
 type ListHostInput struct {
-	More     *string `json:"more,omitempty"`
-	PageSize *int    `json:"pageSize,omitempty"`
-	Page     *int    `json:"page,omitempty"`
+	*Pagination
+	Filter []*Filter `json:"filter,omitempty"`
 }
 type ListHostOutput struct {
-	Count int           `json:"count"`
-	Items []config.Host `json:"items"`
-	More  *string       `json:"more,omitempty"`
+	Count int            `json:"count"`
+	Items []*config.Host `json:"items,omitempty"`
+	More  *string        `json:"more,omitempty"`
 }
 
 type GetHostInput struct{}

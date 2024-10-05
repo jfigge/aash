@@ -41,3 +41,7 @@ func DefaultInt(values ...int) int {
 	}
 	return 0
 }
+
+func Ptr[T any](t T) *T {
+	return &t
+}
