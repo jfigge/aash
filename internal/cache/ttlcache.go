@@ -19,7 +19,7 @@ var (
 	minTTLInterval    = time.Minute
 )
 
-type OptFn[K comparable, V any] func(*config[K, V])
+type OptFn func(*config)
 type EvictFn[K comparable, V any] func(key K, value V)
 
 type entry[V any] struct {
@@ -27,10 +27,9 @@ type entry[V any] struct {
 	expiration time.Time
 }
 
-type config[K comparable, V any] struct {
+type config struct {
 	defaultTTL       time.Duration
 	maxEntries       int
-	evictionFn       EvictFn[K, V]
 	allowReplace     bool
 	allowEviction    bool
 	touchOnHit       bool
@@ -39,35 +38,39 @@ type config[K comparable, V any] struct {
 }
 
 type Cache[K comparable, V any] struct {
-	parentCtx context.Context
-	reaperCtx context.Context
-	cancel    context.CancelFunc
-	deleted   int
-	wg        sync.WaitGroup
-	lock      sync.RWMutex
-	items     map[K]*entry[V]
-	keys      *queue.Queue[K]
-	null      V
-	nullKey   K
-	*config[K, V]
+	parentCtx  context.Context
+	reaperCtx  context.Context
+	cancel     context.CancelFunc
+	deleted    int
+	wg         sync.WaitGroup
+	lock       sync.RWMutex
+	items      map[K]*entry[V]
+	keys       *queue.Queue[K]
+	null       V
+	nullKey    K
+	evictionFn EvictFn[K, V]
+	*config
 }
 
-func NewCache[K comparable, V any](ctx context.Context, options ...OptFn[K, V]) *Cache[K, V] {
+func NewCache[K comparable, V any](ctx context.Context, options ...OptFn) *Cache[K, V] {
+	return NewCacheWithEvict(ctx, func(K, V) {}, options...)
+}
+func NewCacheWithEvict[K comparable, V any](ctx context.Context, evictFn EvictFn[K, V], options ...OptFn) *Cache[K, V] {
 	reaperCtx, cancel := context.WithCancel(ctx)
 	cache := &Cache[K, V]{
-		parentCtx: ctx,
-		cancel:    cancel,
-		reaperCtx: reaperCtx,
-		items:     map[K]*entry[V]{},
-		keys:      queue.NewQueue[K](),
-		config: &config[K, V]{
+		parentCtx:  ctx,
+		cancel:     cancel,
+		reaperCtx:  reaperCtx,
+		items:      map[K]*entry[V]{},
+		keys:       queue.NewQueue[K](),
+		evictionFn: evictFn,
+		config: &config{
 			defaultTTL:       30 * time.Minute,
 			maxEntries:       -1,
 			touchOnHit:       true,
 			reaperInterval:   5 * time.Minute,
 			allowReplace:     false,
 			allowEviction:    true,
-			evictionFn:       nil,
 			reaperBufferSize: 100,
 		},
 	}
@@ -82,31 +85,26 @@ func NewCache[K comparable, V any](ctx context.Context, options ...OptFn[K, V]) 
 	return cache
 }
 
-func OptionDefaultTTL[K comparable, V any](defaultTTL time.Duration) OptFn[K, V] {
-	return func(c *config[K, V]) {
-		c.defaultTTL = checkTTLRange[K, V](defaultTTL)
+func OptionDefaultTTL(defaultTTL time.Duration) OptFn {
+	return func(c *config) {
+		c.defaultTTL = checkTTLRange(defaultTTL)
 	}
 }
-func OptionMaxEntries[K comparable, V any](maxEntries int) OptFn[K, V] {
-	return func(c *config[K, V]) {
+func OptionMaxEntries(maxEntries int) OptFn {
+	return func(c *config) {
 		if maxEntries < 1 {
 			maxEntries = 1
 		}
 		c.maxEntries = maxEntries
 	}
 }
-func OptionEvictionFn[K comparable, V any](evictionFn EvictFn[K, V]) OptFn[K, V] {
-	return func(c *config[K, V]) {
-		c.evictionFn = evictionFn
-	}
-}
-func OptionTouchOnHit[K comparable, V any](touchOnHit bool) OptFn[K, V] {
-	return func(c *config[K, V]) {
+func OptionTouchOnHit(touchOnHit bool) OptFn {
+	return func(c *config) {
 		c.touchOnHit = touchOnHit
 	}
 }
-func OptionReaperInterval[K comparable, V any](reaperInterval time.Duration) OptFn[K, V] {
-	return func(c *config[K, V]) {
+func OptionReaperInterval(reaperInterval time.Duration) OptFn {
+	return func(c *config) {
 		if reaperInterval < minReaperInterval {
 			reaperInterval = minReaperInterval
 		} else if reaperInterval > maxReaperInterval {
@@ -115,25 +113,25 @@ func OptionReaperInterval[K comparable, V any](reaperInterval time.Duration) Opt
 		c.reaperInterval = reaperInterval
 	}
 }
-func OptionReaperBufferSize[K comparable, V any](size int) OptFn[K, V] {
-	return func(c *config[K, V]) {
+func OptionReaperBufferSize(size int) OptFn {
+	return func(c *config) {
 		if size < 1 {
 			size = 1
 		}
 		c.reaperBufferSize = size
 	}
 }
-func OptionAllowEviction[K comparable, V any](allowEviction bool) OptFn[K, V] {
-	return func(c *config[K, V]) {
+func OptionAllowEviction(allowEviction bool) OptFn {
+	return func(c *config) {
 		c.allowEviction = allowEviction
 	}
 }
-func OptionAllowReplace[K comparable, V any](allowReplace bool) OptFn[K, V] {
-	return func(c *config[K, V]) {
+func OptionAllowReplace(allowReplace bool) OptFn {
+	return func(c *config) {
 		c.allowReplace = allowReplace
 	}
 }
-func checkTTLRange[K comparable, V any](ttl time.Duration) time.Duration {
+func checkTTLRange(ttl time.Duration) time.Duration {
 	if ttl < minTTLInterval {
 		ttl = minTTLInterval
 	}
@@ -165,7 +163,7 @@ func (c *Cache[K, V]) AddWithTTL(key K, value V, ttl time.Duration) bool {
 
 	c.items[key] = &entry[V]{
 		item:       value,
-		expiration: time.Now().Add(checkTTLRange[K, V](ttl)),
+		expiration: time.Now().Add(checkTTLRange(ttl)),
 	}
 	fmt.Printf("%v\n", c.items[key].expiration)
 	c.keys.Push(key)

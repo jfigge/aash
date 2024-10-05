@@ -21,7 +21,6 @@ func TestNewCacheDefaultConfig(t *testing.T) {
 	assert.Equal(t, 5*time.Minute, cache.config.reaperInterval)
 	assert.Equal(t, true, cache.config.allowEviction)
 	assert.Equal(t, false, cache.config.allowReplace)
-	assert.Nil(t, cache.config.evictionFn)
 	assert.Equal(t, 100, cache.config.reaperBufferSize)
 	cache.Close()
 }
@@ -29,14 +28,13 @@ func TestNewCacheDefaultConfig(t *testing.T) {
 func TestNewCacheOptionsConfig(t *testing.T) {
 	ctx := context.Background()
 	cache := NewCache[string, int](ctx,
-		OptionDefaultTTL[string, int](time.Hour),
-		OptionMaxEntries[string, int](100),
-		OptionTouchOnHit[string, int](false),
-		OptionReaperInterval[string, int](10*time.Minute),
-		OptionAllowEviction[string, int](false),
-		OptionAllowReplace[string, int](true),
-		OptionEvictionFn[string, int](func(key string, entry int) {}),
-		OptionReaperBufferSize[string, int](200),
+		OptionDefaultTTL(time.Hour),
+		OptionMaxEntries(100),
+		OptionTouchOnHit(false),
+		OptionReaperInterval(10*time.Minute),
+		OptionAllowEviction(false),
+		OptionAllowReplace(true),
+		OptionReaperBufferSize(200),
 	)
 	assert.Equal(t, time.Hour, cache.config.defaultTTL)
 	assert.Equal(t, 100, cache.config.maxEntries)
@@ -44,7 +42,6 @@ func TestNewCacheOptionsConfig(t *testing.T) {
 	assert.Equal(t, 10*time.Minute, cache.config.reaperInterval)
 	assert.Equal(t, false, cache.config.allowEviction)
 	assert.Equal(t, true, cache.config.allowReplace)
-	assert.NotNil(t, cache.config.evictionFn)
 	assert.Equal(t, 200, cache.config.reaperBufferSize)
 	cache.Close()
 }
@@ -52,7 +49,7 @@ func TestNewCacheOptionsConfig(t *testing.T) {
 func TestNewCacheOptionMaxEntriesRange(t *testing.T) {
 	ctx := context.Background()
 	cache := NewCache[string, int](ctx,
-		OptionMaxEntries[string, int](0),
+		OptionMaxEntries(0),
 	)
 	assert.Equal(t, 1, cache.config.maxEntries)
 	cache.Close()
@@ -62,14 +59,14 @@ func TestNewCacheOptionReaperIntervalRange(t *testing.T) {
 	ctx := context.Background()
 	t.Run("too low", func(tt *testing.T) {
 		cache := NewCache[string, int](ctx,
-			OptionReaperInterval[string, int](time.Second),
+			OptionReaperInterval(time.Second),
 		)
 		assert.Equal(t, 30*time.Second, cache.config.reaperInterval)
 		cache.Close()
 	})
 	t.Run("too high", func(tt *testing.T) {
 		cache := NewCache[string, int](ctx,
-			OptionReaperInterval[string, int](7201*time.Second),
+			OptionReaperInterval(7201*time.Second),
 		)
 		assert.Equal(t, time.Hour, cache.config.reaperInterval)
 		cache.Close()
@@ -79,7 +76,7 @@ func TestNewCacheOptionReaperIntervalRange(t *testing.T) {
 func TestNewCacheOptionReaperBufferSizeRange(t *testing.T) {
 	ctx := context.Background()
 	cache := NewCache[string, int](ctx,
-		OptionReaperBufferSize[string, int](-1),
+		OptionReaperBufferSize(-1),
 	)
 	assert.Equal(t, 1, cache.config.reaperBufferSize)
 	cache.Close()
@@ -88,7 +85,7 @@ func TestNewCacheOptionReaperBufferSizeRange(t *testing.T) {
 func TestNewCacheOptionDefaultTTLRange(t *testing.T) {
 	ctx := context.Background()
 	cache := NewCache[string, int](ctx,
-		OptionDefaultTTL[string, int](30*time.Millisecond),
+		OptionDefaultTTL(30*time.Millisecond),
 	)
 	assert.Equal(t, time.Minute, cache.config.defaultTTL)
 	cache.Close()
@@ -97,12 +94,12 @@ func TestNewCacheOptionDefaultTTLRange(t *testing.T) {
 func TestHappyPath(t *testing.T) {
 	evictionCalled := false
 	ctx := context.Background()
-	c := NewCache[string, int](
+	c := NewCacheWithEvict[string, int](
 		ctx,
-		OptionMaxEntries[string, int](2),
-		OptionEvictionFn[string, int](func(key string, value int) {
+		func(key string, value int) {
 			evictionCalled = key == "A"
-		}),
+		},
+		OptionMaxEntries(2),
 	)
 
 	// Adds
@@ -146,15 +143,15 @@ func TestHappyPath(t *testing.T) {
 func TestAlternativeHappyPath(t *testing.T) {
 	evictionCalled := false
 	ctx := context.Background()
-	c := NewCache[string, int](
+	c := NewCacheWithEvict[string, int](
 		ctx,
-		OptionMaxEntries[string, int](2),
-		OptionAllowReplace[string, int](true),
-		OptionAllowEviction[string, int](false),
-		OptionTouchOnHit[string, int](false),
-		OptionEvictionFn[string, int](func(key string, value int) {
+		func(key string, value int) {
 			evictionCalled = key == "A"
-		}),
+		},
+		OptionMaxEntries(2),
+		OptionAllowReplace(true),
+		OptionAllowEviction(false),
+		OptionTouchOnHit(false),
 	)
 
 	// Adds
@@ -194,15 +191,15 @@ func TestEviction(t *testing.T) {
 	minReaperInterval = 1
 	minTTLInterval = 1
 	var evictedOrder []string
-	c := NewCache[string, int](
+	c := NewCacheWithEvict[string, int](
 		ctx,
-		OptionTouchOnHit[string, int](true),
-		OptionReaperBufferSize[string, int](1),
-		OptionDefaultTTL[string, int](2*time.Second),
-		OptionReaperInterval[string, int](100*time.Millisecond),
-		OptionEvictionFn[string, int](func(key string, value int) {
+		func(key string, value int) {
 			evictedOrder = append(evictedOrder, key)
-		}),
+		},
+		OptionTouchOnHit(true),
+		OptionReaperBufferSize(1),
+		OptionDefaultTTL(2*time.Second),
+		OptionReaperInterval(100*time.Millisecond),
 	)
 
 	c.Add("A", 1)
