@@ -1,6 +1,6 @@
 .idea/**
 auto-ssh.iml
 ash-*
-auto-ssh.yaml
 config.yaml
+.auto-ssh.yaml*
 ash.config

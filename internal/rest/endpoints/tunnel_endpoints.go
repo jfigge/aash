@@ -2,7 +2,7 @@
  * Copyright (C) 2024 by Jason Figge
  */
 
-package rest
+package endpoints
 
 import (
 	"context"
@@ -11,11 +11,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
-	managerModels "us.figge.auto-ssh/internal/web/models"
-)
-
-const (
-	TunnelName = "tunnelName"
+	managerModels "us.figge.auto-ssh/internal/rest/models"
 )
 
 type TunnelRest struct {
@@ -28,24 +24,26 @@ func NewTunnelRest(ctx context.Context, manager managerModels.Tunnel, router *mu
 	}
 	router.Methods(http.MethodGet, http.MethodPost).Path("/tunnels").HandlerFunc(apis.ListTunnels)
 	router.Methods(http.MethodPost).Path("/tunnels").HandlerFunc(apis.AddTunnel)
-	router.Methods(http.MethodGet).Path("/tunnels/{" + HostName + "}").HandlerFunc(apis.GetTunnel)
-	router.Methods(http.MethodPut).Path("/tunnels/{" + HostName + "}").HandlerFunc(apis.UpdateTunnel)
-	router.Methods(http.MethodDelete).Path("/tunnels/{" + HostName + "}").HandlerFunc(apis.RemoveTunnel)
-	router.Methods(http.MethodDelete).Path("/tunnels/{" + HostName + "}/start").HandlerFunc(apis.StartTunnel)
-	router.Methods(http.MethodDelete).Path("/tunnels/{" + HostName + "}/stop").HandlerFunc(apis.StopTunnel)
+	router.Methods(http.MethodGet).Path("/tunnels/{id}").HandlerFunc(apis.GetTunnel)
+	router.Methods(http.MethodPut).Path("/tunnels/{id}").HandlerFunc(apis.UpdateTunnel)
+	router.Methods(http.MethodDelete).Path("/tunnels/{id}").HandlerFunc(apis.RemoveTunnel)
+	router.Methods(http.MethodDelete).Path("/tunnels/{id}/start").HandlerFunc(apis.StartTunnel)
+	router.Methods(http.MethodDelete).Path("/tunnels/{id}/stop").HandlerFunc(apis.StopTunnel)
 }
 
 func (a *TunnelRest) ListTunnels(resp http.ResponseWriter, req *http.Request) {
 	input := &managerModels.ListTunnelInput{}
-	if req.Body != http.NoBody {
+	if req.Method == http.MethodGet {
+		input.Vars(req)
+	} else if req.Body != http.NoBody {
 		err := json.NewDecoder(req.Body).Decode(input)
 		if err != nil {
 			resp.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		input.Validate()
 	}
-	output, err := a.manager.List(req.Context(), input, extractTunnelOptions(req)...)
+	input.Validate()
+	output, err := a.manager.ListTunnels(req.Context(), input, extractTunnelOptions(req)...)
 	if err != nil {
 		handleErrorResponse(resp, err)
 		return
@@ -54,13 +52,8 @@ func (a *TunnelRest) ListTunnels(resp http.ResponseWriter, req *http.Request) {
 }
 func (a *TunnelRest) GetTunnel(resp http.ResponseWriter, req *http.Request) {
 	input := &managerModels.GetTunnelInput{}
-	if req.Body != http.NoBody {
-		err := json.NewDecoder(req.Body).Decode(input)
-		if err != nil {
-			resp.WriteHeader(http.StatusBadRequest)
-		}
-	}
-	output, err := a.manager.Get(req.Context(), input, extractTunnelOptions(req)...)
+	input.Id = mux.Vars(req)[id]
+	output, err := a.manager.GetTunnel(req.Context(), input, extractTunnelOptions(req)...)
 	if err != nil {
 		handleErrorResponse(resp, err)
 	}
@@ -73,8 +66,8 @@ func (a *TunnelRest) AddTunnel(resp http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		resp.WriteHeader(http.StatusBadRequest)
 	}
-	_, err = a.manager.Add(req.Context(), input, extractTunnelOptions(req)...)
-	hostName := mux.Vars(req)[TunnelName]
+	_, err = a.manager.AddTunnel(req.Context(), input, extractTunnelOptions(req)...)
+	hostName := mux.Vars(req)[id]
 	resp.Write([]byte(fmt.Sprintf("AddTunnel: " + hostName)))
 }
 
@@ -84,8 +77,8 @@ func (a *TunnelRest) UpdateTunnel(resp http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		resp.WriteHeader(http.StatusBadRequest)
 	}
-	_, err = a.manager.Update(req.Context(), input, extractTunnelOptions(req)...)
-	hostName := mux.Vars(req)[TunnelName]
+	_, err = a.manager.UpdateTunnel(req.Context(), input, extractTunnelOptions(req)...)
+	hostName := mux.Vars(req)[id]
 	resp.Write([]byte(fmt.Sprintf("UpdateTunnel: " + hostName)))
 }
 
@@ -95,8 +88,8 @@ func (a *TunnelRest) RemoveTunnel(resp http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		resp.WriteHeader(http.StatusBadRequest)
 	}
-	_, err = a.manager.Remove(req.Context(), input, extractTunnelOptions(req)...)
-	hostName := mux.Vars(req)[TunnelName]
+	_, err = a.manager.RemoveTunnel(req.Context(), input, extractTunnelOptions(req)...)
+	hostName := mux.Vars(req)[id]
 	resp.Write([]byte(fmt.Sprintf("RemoveTunnel: " + hostName)))
 }
 

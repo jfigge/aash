@@ -5,19 +5,24 @@
 package models
 
 import (
+	"context"
+	"sync"
+
 	"us.figge.auto-ssh/internal/core/config"
 )
 
-type Tunnel interface {
-	Tunnels() []*config.Tunnel
+type TunnelEngine interface {
+	Tunnels() []Tunnel
+	Tunnel(string) (Tunnel, bool)
+	StartTunnels(ctx context.Context) (sync.WaitGroup, bool)
 }
 
-//type TunnelEntry struct {
-//	Name          string
-//	Group         string
-//	LocalPort     uint16
-//	RemoteAddress string
-//	RemotePort    uint16
-//	JumpTunnel    string
-//	Metadata      *config.Metadata
-//}
+type Tunnel interface {
+	Id() string
+	Name() string
+	Local() *config.Address
+	Remote() *config.Address
+	Host() string
+	Valid() bool
+	Metadata() *config.Metadata
+}

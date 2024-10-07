@@ -2,7 +2,7 @@
  * Copyright (C) 2024 by Jason Figge
  */
 
-package rest
+package endpoints
 
 import (
 	"bufio"
@@ -13,13 +13,11 @@ import (
 	"net/http"
 	"reflect"
 
-	"us.figge.auto-ssh/internal/core/utils"
-	"us.figge.auto-ssh/internal/web/managers"
+	"us.figge.auto-ssh/internal/rest/managers"
 )
 
-var (
-	defaultPage     = utils.Ptr(1)
-	defaultPageSize = utils.Ptr(100)
+const (
+	id = "id"
 )
 
 var (
@@ -32,9 +30,11 @@ func handleErrorResponse(resp http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(errors.Unwrap(err), managers.ErrHostNotFound):
 		httpStatus = http.StatusNotFound
+	case errors.Is(errors.Unwrap(err), managers.ErrTunnelNotFound):
+		httpStatus = http.StatusNotFound
 	}
-	resp.Write([]byte(err.Error()))
 	resp.WriteHeader(httpStatus)
+	resp.Write([]byte(err.Error()))
 }
 
 func handleOutputResponse(resp http.ResponseWriter, output any) {

@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"us.figge.auto-ssh/internal/queue"
+	"us.figge.auto-ssh/internal/core/utils/queue"
 )
 
 var (

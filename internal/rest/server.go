@@ -2,7 +2,7 @@
  * Copyright (C) 2024 by Jason Figge
  */
 
-package web
+package rest
 
 import (
 	"context"
@@ -15,9 +15,9 @@ import (
 	"github.com/spf13/cobra"
 	"us.figge.auto-ssh/internal/core/config"
 	engineModels "us.figge.auto-ssh/internal/resources/models"
-	"us.figge.auto-ssh/internal/web/managers"
-	managerModels "us.figge.auto-ssh/internal/web/models"
-	"us.figge.auto-ssh/internal/web/rest"
+	"us.figge.auto-ssh/internal/rest/endpoints"
+	"us.figge.auto-ssh/internal/rest/managers"
+	managerModels "us.figge.auto-ssh/internal/rest/models"
 )
 
 var (
@@ -34,8 +34,8 @@ type Server struct {
 func NewServer(
 	ctx context.Context,
 	web *config.Web,
-	hosts engineModels.Host,
-	tunnels engineModels.Tunnel,
+	hosts engineModels.HostEngine,
+	tunnels engineModels.TunnelEngine,
 ) (*Server, error) {
 	s := &Server{
 		webCfg: cliArgs.Merge(web),
@@ -157,7 +157,7 @@ func (s *Server) validateCertKey(v *config.Validations) {
 }
 
 func (s *Server) startManagers(
-	ctx context.Context, hosts engineModels.Host, tunnels engineModels.Tunnel,
+	ctx context.Context, hosts engineModels.HostEngine, tunnels engineModels.TunnelEngine,
 ) (managerModels.Host, managerModels.Tunnel) {
 	hostManager, tunnelManager, err := s.startManagersE(ctx, hosts, tunnels)
 	if err != nil {
@@ -167,7 +167,7 @@ func (s *Server) startManagers(
 	return hostManager, tunnelManager
 }
 func (s *Server) startManagersE(
-	ctx context.Context, hosts engineModels.Host, tunnels engineModels.Tunnel,
+	ctx context.Context, hosts engineModels.HostEngine, tunnels engineModels.TunnelEngine,
 ) (hostManager managerModels.Host, tunnelManager managerModels.Tunnel, err error) {
 	hostManager, err = managers.NewHostManager(ctx, hosts)
 	if err != nil {
@@ -184,8 +184,8 @@ func (s *Server) startHandlers(
 	ctx context.Context, hostManager managerModels.Host, tunnelManager managerModels.Tunnel,
 ) *mux.Router {
 	routes := mux.NewRouter()
-	rest.NewHostRest(ctx, hostManager, routes)
-	rest.NewTunnelRest(ctx, tunnelManager, routes)
+	endpoints.NewHostRest(ctx, hostManager, routes)
+	endpoints.NewTunnelRest(ctx, tunnelManager, routes)
 	return routes
 }
 

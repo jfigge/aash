@@ -6,6 +6,7 @@ package models
 
 import (
 	"context"
+	"net/http"
 
 	"us.figge.auto-ssh/internal/core/config"
 )
@@ -13,55 +14,71 @@ import (
 type TunnelOptionFunc func(options *TunnelOptions)
 type TunnelOptions struct{}
 type Tunnel interface {
-	List(
+	ListTunnels(
 		ctx context.Context,
 		input *ListTunnelInput,
 		options ...TunnelOptionFunc,
 	) (*ListTunnelOutput, error)
-	Get(
+	GetTunnel(
 		ctx context.Context,
 		input *GetTunnelInput,
 		options ...TunnelOptionFunc,
 	) (*GetTunnelOutput, error)
-	Add(
+	AddTunnel(
 		ctx context.Context,
 		input *AddTunnelInput,
 		options ...TunnelOptionFunc,
 	) (*AddTunnelOutput, error)
-	Update(
+	UpdateTunnel(
 		ctx context.Context,
 		input *UpdateTunnelInput,
 		options ...TunnelOptionFunc,
 	) (*UpdateTunnelOutput, error)
-	Remove(
+	RemoveTunnel(
 		ctx context.Context,
 		input *RemoveTunnelInput,
 		options ...TunnelOptionFunc,
 	) (*RemoveTunnelOutput, error)
-	Start(
+	StartTunnel(
 		ctx context.Context,
 		input *StartTunnelInput,
 		options ...TunnelOptionFunc,
 	) (*StartTunnelOutput, error)
-	Stop(
+	StopTunnel(
 		ctx context.Context,
 		input *StopTunnelInput,
 		options ...TunnelOptionFunc,
 	) (*StopTunnelOutput, error)
 }
 
-type ListTunnelInput struct {
-	*Pagination
-	Filter []*Filter `json:"filter,omitempty"`
-}
-type ListTunnelOutput struct {
-	Count int              `json:"count"`
-	Items []*config.Tunnel `json:"items,omitempty"`
-	More  *string          `json:"more,omitempty"`
+type TunnelHeader struct {
+	Id    string `json:"id"`
+	Name  string `json:"name"`
+	Valid bool   `json:"valid"`
 }
 
-type GetTunnelInput struct{}
-type GetTunnelOutput struct{}
+type ListTunnelInput struct {
+	PaginationInput
+	FiltersInput
+}
+
+func (i *ListTunnelInput) Vars(req *http.Request) {
+	i.PaginationInput.Vars(req)
+	i.FiltersInput.Vars(req)
+}
+
+type ListTunnelOutput struct {
+	Count int             `json:"count"`
+	Items []*TunnelHeader `json:"items,omitempty"`
+	PaginationOutput
+}
+
+type GetTunnelInput struct {
+	Id string `json:"id"`
+}
+type GetTunnelOutput struct {
+	config.Tunnel
+}
 
 type AddTunnelInput struct{}
 type AddTunnelOutput struct{}

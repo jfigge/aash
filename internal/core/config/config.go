@@ -33,34 +33,46 @@ type Configuration struct {
 }
 
 type Host struct {
+	Id         string    `yaml:"id" json:"id"`
 	Name       string    `yaml:"name" json:"name"`
-	Group      string    `yaml:"group,omitempty" json:"group,omitempty"`
-	Address    string    `yaml:"address" json:"address"`
+	Remote     *Address  `yaml:"remote" json:"remove"`
 	Username   string    `yaml:"username" json:"username"`
 	Identity   string    `yaml:"identity" json:"identity"`
-	KnownHosts string    `yaml:"known-hosts" json:"knownHosts"`
-	JumpHost   string    `yaml:"jump-host" json:"jumpHost"`
+	KnownHosts string    `yaml:"knownHosts" json:"knownHosts"`
+	JumpHost   string    `yaml:"jumpHost" json:"jumpHost"`
 	Metadata   *Metadata `yaml:"metadata,omitempty" json:"metadata,omitempty"`
 }
 
 type Tunnel struct {
+	Id       string    `yaml:"id" json:"id"`
 	Name     string    `yaml:"name" json:"name"`
-	Group    string    `yaml:"group,omitempty" json:"group,omitempty"`
-	Local    string    `yaml:"local" json:"local"`
-	Remote   string    `yaml:"remote" json:"remote"`
-	JumpHost string    `yaml:"jump-host,omitempty" json:"jumpHost,omitempty"`
+	Local    *Address  `yaml:"local" json:"local"`
+	Remote   *Address  `yaml:"remote" json:"remote"`
+	Host     string    `yaml:"host,omitempty" json:"host,omitempty"`
 	Metadata *Metadata `yaml:"metadata,omitempty" json:"metadata,omitempty"`
 }
 
 type Metadata struct {
-	Color     string `yaml:"color,omitempty" json:"color,omitempty"`
-	Highlight bool   `yaml:"highlight" json:"highlight"`
+	Tags      []string `yaml:"tags,omitempty" json:"tags,omitempty"`
+	Color     string   `yaml:"color,omitempty" json:"color,omitempty"`
+	Highlight string   `yaml:"highlight" json:"highlight"`
 }
 
 type Monitor struct {
+	Color      *Color       `yaml:"color"           json:"color"`
+	StatsPort  int          `yaml:"statsPort" json:"statsPort"`
 	Compressed bool         `yaml:"compressed,omitempty" json:"compressed,omitempty"`
 	Metrics    []string     `yaml:"metrics,omitempty" json:"metrics,omitempty"`
-	SortOrder  []*SortOrder `yaml:"sort-order,omitempty" json:"sortOrder,omitempty"`
+	SortOrder  []*SortOrder `yaml:"sortOrder,omitempty" json:"sortOrder,omitempty"`
+	Units      string       `yaml:"units" json:"units"`
+}
+
+type Color struct {
+	Header  string `yaml:"header"      json:"header"`
+	Tunnel  string `yaml:"tunnel"      json:"tunnel"`
+	MRU     string `yaml:"mru"         json:"mru"`
+	Jump    string `yaml:"jump-tunnel" json:"jump-tunnel"`
+	Enabled bool   `yaml:"enabled"     json:"enabled"`
 }
 
 type SortOrder struct {
@@ -71,9 +83,9 @@ type SortOrder struct {
 type Web struct {
 	Address         string `yaml:"address" json:"address"`
 	Port            int16  `yaml:"port,omitempty" json:"port,omitempty"`
-	CertificateFile string `yaml:"certificate-file,omitempty" json:"certificate-file,omitempty"`
-	CertificateKey  string `yaml:"certificate-key,omitempty" json:"certificate-key,omitempty"`
-	KeyPassphrase   string `yaml:"key-passphrase" json:"key-passphrase"`
+	CertificateFile string `yaml:"certificateFile,omitempty" json:"certificateFile,omitempty"`
+	CertificateKey  string `yaml:"certificateKey,omitempty" json:"certificateKey,omitempty"`
+	KeyPassphrase   string `yaml:"keyPassphrase,omitempty" json:"keyPassphrase,omitempty"`
 }
 
 func NewConfig() *Configuration {
@@ -81,6 +93,7 @@ func NewConfig() *Configuration {
 		Hosts:   []*Host{},
 		Tunnels: []*Tunnel{},
 		Monitor: &Monitor{
+			StatsPort:  2663,
 			Compressed: false,
 			Metrics:    []string{"Id", "Name", "Port", "Rcvd", "Sent", "Open", "Jump", "Last"},
 			SortOrder: []*SortOrder{
