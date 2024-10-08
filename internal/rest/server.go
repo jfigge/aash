@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"sync"
 
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
@@ -25,6 +26,7 @@ var (
 )
 
 type Server struct {
+	wg            *sync.WaitGroup
 	webCfg        *config.Web
 	httpServer    *http.Server
 	hostManager   managerModels.Host
@@ -36,9 +38,11 @@ func NewServer(
 	web *config.Web,
 	hosts engineModels.HostEngine,
 	tunnels engineModels.TunnelEngine,
+	wg *sync.WaitGroup,
 ) (*Server, error) {
 	s := &Server{
 		webCfg: cliArgs.Merge(web),
+		wg:     wg,
 	}
 	v := s.Validate()
 	err := v.Output(fmt.Errorf("failed to validate server configuration"))
@@ -190,6 +194,7 @@ func (s *Server) startHandlers(
 }
 
 func (s *Server) Serve(ctx context.Context, routes *mux.Router) error {
+	s.wg.Add(1)
 	listenAddress := fmt.Sprintf("%s:%d", s.webCfg.Address, s.webCfg.Port)
 	//nolint: gosec
 	s.httpServer = &http.Server{
@@ -229,7 +234,8 @@ func (s *Server) Shutdown() {
 		if err != nil {
 			fmt.Printf("error shutting down web server: %v", err)
 		}
-		s.httpServer = nil
 		fmt.Printf("server is shut down\n")
+		s.httpServer = nil
+		s.wg.Done()
 	}
 }

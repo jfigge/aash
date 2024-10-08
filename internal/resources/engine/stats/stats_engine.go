@@ -2,7 +2,7 @@
  * Copyright (C) 2024 by Jason Figge
  */
 
-package engine
+package stats
 
 import (
 	"context"
@@ -31,6 +31,7 @@ type TunnelStats struct {
 	Connections int       `json:"c" title:"Used" format:"%%%ds "  sort:"%[2]s%[1]s"`
 	JumpTunnel  bool      `json:"j" title:"Jump" format:"%%%ds "  sort:"%[2]s%[1]s"`
 	Updated     time.Time `json:"u" title:"Last" format:"%%-%ds " sort:"%[1]s%[2]s"`
+	updateChan  chan struct{}
 	// private properties must be listed last
 }
 

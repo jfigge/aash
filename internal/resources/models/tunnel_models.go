@@ -14,7 +14,7 @@ import (
 type TunnelEngine interface {
 	Tunnels() []Tunnel
 	Tunnel(string) (Tunnel, bool)
-	StartTunnels(ctx context.Context) (sync.WaitGroup, bool)
+	StartTunnels(ctx context.Context, wg *sync.WaitGroup)
 }
 
 type Tunnel interface {

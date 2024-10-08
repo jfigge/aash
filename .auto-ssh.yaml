@@ -4,38 +4,38 @@ hosts:
     name: Review-Bastion
     remote: 54.245.154.52
     username: ec2-user
-    identity: /Users/jason.figge/.ssh/pingidp2.pem
-    knownHosts: /Users/jason.figge/.ssh/known_hosts
+    identity: /Users/jason/.ssh/pingidp2.pem
+    knownHosts: /Users/jason/.ssh/known_hosts
   - id: 02
     name: Staging-Bastion
     remote: 35.164.43.75
     username: ec2-user
-    identity: /Users/jason.figge/.ssh/pingidp2.pem
-    knownHosts: /Users/jason.figge/.ssh/known_hosts
+    identity: /Users/jason/.ssh/pingidp2.pem
+    knownHosts: /Users/jason/.ssh/known_hosts
   - id: 03
     name: Staging-Fedramp-Bastion
     remote: 35.93.224.106
     username: ec2-user
-    identity: /Users/jason.figge/.ssh/stagingfed.pem
-    knownHosts: /Users/jason.figge/.ssh/known_hosts
+    identity: /Users/jason/.ssh/stagingfed.pem
+    knownHosts: /Users/jason/.ssh/known_hosts
 # Jumped hosts
   - id: 04
     name: Review Ping A
     remote: 172.21.194.80
     username: ec2-user
-    identity: /Users/jason.figge/.ssh/pingidp2.pem
+    identity: /Users/jason/.ssh/pingidp2.pem
     jumpHost: Review-Bastion
   - id: 05
     name: Staging-Federate
     remote: 172.21.194.234
     username: ec2-user
-    identity: /Users/jason.figge/.ssh/stagingfed.pem
+    identity: /Users/jason/.ssh/stagingfed.pem
     jumpHost: Staging-Fedramp-Bastion
   - id: 06
     name: pf-engine2-prod
     remote: 44.231.81.53
     username: ec2-user
-    identity: /Users/jason.figge/.ssh/pingprod.pem
+    identity: /Users/jason/.ssh/pingprod.pem
 tunnels:
 # Local
   - id: 01

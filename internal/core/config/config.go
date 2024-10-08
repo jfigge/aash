@@ -37,6 +37,7 @@ type Host struct {
 	Name       string    `yaml:"name" json:"name"`
 	Remote     *Address  `yaml:"remote" json:"remove"`
 	Username   string    `yaml:"username" json:"username"`
+	Passphrase string    `yaml:"passphrase,omitempty"  json:"passphrase,omitempty"`
 	Identity   string    `yaml:"identity" json:"identity"`
 	KnownHosts string    `yaml:"knownHosts" json:"knownHosts"`
 	JumpHost   string    `yaml:"jumpHost" json:"jumpHost"`

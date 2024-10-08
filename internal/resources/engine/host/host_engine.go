@@ -2,45 +2,46 @@
  * Copyright (C) 2024 by Jason Figge
  */
 
-package engine
+package host
 
 import (
 	"context"
+	"fmt"
 	"slices"
 
+	"golang.org/x/crypto/ssh"
 	"us.figge.auto-ssh/internal/core/config"
 	engineModels "us.figge.auto-ssh/internal/resources/models"
 )
 
 type HostEngine struct {
 	hostEntries map[string]*HostEntry
+	identityMap map[string]ssh.Signer
+	hostKeysMap map[string]*HostKeyManager
 }
 
-type hostData struct {
-	*config.Host
-	valid bool
-	inUse bool
-}
-type HostEntry struct {
-	hostData
-}
-
-func NewHostEngine(ctx context.Context, hosts []*config.Host) (*HostEngine, bool) {
+func NewHostEngine(ctx context.Context, hosts []*config.Host) *HostEngine {
 	engine := &HostEngine{
 		hostEntries: make(map[string]*HostEntry),
+		identityMap: make(map[string]ssh.Signer),
+		hostKeysMap: make(map[string]*HostKeyManager),
 	}
-	success := true
 	for _, cfgHost := range hosts {
+		if _, ok := engine.hostEntries[cfgHost.Name]; ok {
+			fmt.Printf("  Error - host name (%s) redfined\n", cfgHost.Name)
+			continue
+		}
 		host := &HostEntry{
 			hostData: hostData{
 				Host:  cfgHost,
-				valid: false,
+				valid: true,
 				inUse: false,
 			},
 		}
+		host.Validate("", engine.identityMap, engine.hostKeysMap)
 		engine.hostEntries[cfgHost.Id] = host
 	}
-	return engine, success
+	return engine
 }
 
 func (he *HostEngine) Hosts() []engineModels.Host {
@@ -64,38 +65,4 @@ func (he *HostEngine) KnownHosts() []string {
 		}
 	}
 	return knownHosts
-}
-
-func (he *HostEngine) MarkInUse(name string) {
-	if hostEntry, ok := he.hostEntries[name]; ok {
-		hostEntry.inUse = true
-	}
-}
-
-func (h *HostEntry) Id() string {
-	return h.hostData.Id
-}
-func (h *HostEntry) Name() string {
-	return h.hostData.Name
-}
-func (h *HostEntry) Remote() *config.Address {
-	return h.hostData.Remote
-}
-func (h *HostEntry) Username() string {
-	return h.hostData.Username
-}
-func (h *HostEntry) Identity() string {
-	return h.hostData.Identity
-}
-func (h *HostEntry) KnownHosts() string {
-	return h.hostData.KnownHosts
-}
-func (h *HostEntry) JumpHost() string {
-	return h.hostData.JumpHost
-}
-func (h *HostEntry) Valid() bool {
-	return h.hostData.valid
-}
-func (h *HostEntry) Metadata() *config.Metadata {
-	return h.hostData.Metadata
 }

@@ -11,13 +11,16 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"syscall"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 	"us.figge.auto-ssh/internal/core/config"
 	"us.figge.auto-ssh/internal/core/flag"
-	engine2 "us.figge.auto-ssh/internal/resources/engine"
+	"us.figge.auto-ssh/internal/resources/engine/host"
+	stats2 "us.figge.auto-ssh/internal/resources/engine/stats"
+	engine2 "us.figge.auto-ssh/internal/resources/engine/tunnel"
 	engineModels "us.figge.auto-ssh/internal/resources/models"
 	"us.figge.auto-ssh/internal/rest"
 )
@@ -30,9 +33,10 @@ var (
 	ctx             context.Context
 	cancel          context.CancelFunc
 	server          *rest.Server
-	hosts           engineModels.HostEngine
+	hosts           engineModels.HostEngineInternal
 	tunnels         engineModels.TunnelEngine
 	stats           engineModels.Stats
+	wg              = &sync.WaitGroup{}
 	configFilenames = []string{
 		".auto-ssh.yaml", ".auto-ssh.yml", ".auto-ssh.json",
 		"/auth-ssh/config.yaml", "/auth-ssh/config.yml", "/auth-ssh/config.json"}
@@ -123,14 +127,9 @@ func startEngines() {
 	}
 }
 func startEnginesE() error {
-	var ok bool
-	if hosts, ok = engine2.NewHostEngine(ctx, config.C.Hosts); !ok {
-		return fmt.Errorf("invalid hosts")
-	}
-	if tunnels, ok = engine2.NewTunnelEngine(ctx, hosts, config.C.Tunnels); !ok {
-		return fmt.Errorf("invalid hosts")
-	}
-	stats = engine2.NewStatsEngine()
+	hosts = host.NewHostEngine(ctx, config.C.Hosts)
+	tunnels = engine2.NewTunnelEngine(ctx, hosts, config.C.Tunnels)
+	stats = stats2.NewStatsEngine()
 	return nil
 }
 
@@ -142,7 +141,7 @@ func startServer() {
 }
 func startServerE() error {
 	var err error
-	server, err = rest.NewServer(ctx, config.C.Web, hosts, tunnels)
+	server, err = rest.NewServer(ctx, config.C.Web, hosts, tunnels, wg)
 	if err != nil {
 		return err
 	}
@@ -150,18 +149,8 @@ func startServerE() error {
 }
 
 func startApplication() {
-	cleanup := func() {
-		server.Shutdown()
-		cancel()
-	}
-
 	stats.StartStatsTunnel(ctx, config.C.Monitor.StatsPort)
-	wg, ok := tunnels.StartTunnels(ctx)
-	if !ok {
-		cleanup()
-		fmt.Printf("Failed to successful start tunnels")
-		os.Exit(1)
-	}
+	tunnels.StartTunnels(ctx, wg)
 
 	go func() {
 		// Pressing Ctrl+C signals all threads to end. This in turn causes the below wg.Wait() to end
@@ -169,6 +158,11 @@ func startApplication() {
 		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 		<-sigChan
 		fmt.Printf("\nsystem-service: received signal. Shutting down\n")
+		server.Shutdown()
+		cancel()
 	}()
+
 	wg.Wait()
+	server.Shutdown()
+	cancel()
 }
