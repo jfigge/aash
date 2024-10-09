@@ -15,7 +15,7 @@ import (
 	"us.figge.auto-ssh/internal/core/config"
 	"us.figge.auto-ssh/internal/core/utils/cache"
 	engineModels "us.figge.auto-ssh/internal/resources/models"
-	"us.figge.auto-ssh/internal/rest/models"
+	managerModels "us.figge.auto-ssh/internal/rest/models"
 )
 
 var (
@@ -24,50 +24,50 @@ var (
 
 type HostManager struct {
 	hosts               engineModels.HostEngine
-	listHostHeaderCache *cache.Cache[string, []*models.HostHeader]
-	listKnownHostCache  *cache.Cache[string, []*models.KnownHost]
+	listHostHeaderCache *cache.Cache[string, []*managerModels.HostHeader]
+	listKnownHostCache  *cache.Cache[string, []*managerModels.KnownHost]
 }
 
 func NewHostManager(ctx context.Context, hosts engineModels.HostEngine) (*HostManager, error) {
 	manager := &HostManager{
 		hosts:               hosts,
-		listHostHeaderCache: cache.NewCache[string, []*models.HostHeader](ctx, cache.OptionDefaultTTL(5*time.Minute)),
-		listKnownHostCache:  cache.NewCache[string, []*models.KnownHost](ctx, cache.OptionDefaultTTL(5*time.Minute)),
+		listHostHeaderCache: cache.NewCache[string, []*managerModels.HostHeader](ctx, cache.OptionDefaultTTL(5*time.Minute)),
+		listKnownHostCache:  cache.NewCache[string, []*managerModels.KnownHost](ctx, cache.OptionDefaultTTL(5*time.Minute)),
 	}
 	return manager, nil
 }
 
 func (m *HostManager) ListHosts(
 	ctx context.Context,
-	input *models.ListHostInput,
-	options ...models.HostOptionFunc,
-) (*models.ListHostOutput, error) {
-	output := &models.ListHostOutput{}
-	var items []*models.HostHeader
+	input *managerModels.ListHostInput,
+	options ...managerModels.HostOptionFunc,
+) (*managerModels.ListHostOutput, error) {
+	output := &managerModels.ListHostOutput{}
+	var items []*managerModels.HostHeader
 	if input.More == nil {
 		for _, host := range m.hosts.Hosts() {
 			if hostFilter(input.FiltersInput, host) {
-				items = append(items, &models.HostHeader{Id: host.Id(), Name: host.Name(), Valid: host.Valid()})
+				items = append(items, &managerModels.HostHeader{Id: host.Id(), Name: host.Name(), Valid: host.Valid()})
 			}
 		}
 	} else {
 		items, _ = m.listHostHeaderCache.Remove(*input.More)
 	}
-	output.Items, output.More = Page[*models.HostHeader](items, input.PaginationInput, m.listHostHeaderCache)
+	output.Items, output.More = Page[*managerModels.HostHeader](items, input.PaginationInput, m.listHostHeaderCache)
 	output.Count = len(output.Items)
 	return output, nil
 }
 
 func (m *HostManager) GetHost(
 	ctx context.Context,
-	input *models.GetHostInput,
-	options ...models.HostOptionFunc,
-) (*models.GetHostOutput, error) {
+	input *managerModels.GetHostInput,
+	options ...managerModels.HostOptionFunc,
+) (*managerModels.GetHostOutput, error) {
 	host, ok := m.hosts.Host(input.Id)
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", ErrHostNotFound, input.Id)
 	}
-	output := models.GetHostOutput{
+	output := managerModels.GetHostOutput{
 		Host: config.Host{
 			Id:         host.Id(),
 			Name:       host.Name(),
@@ -84,48 +84,48 @@ func (m *HostManager) GetHost(
 
 func (m *HostManager) AddHost(
 	ctx context.Context,
-	input *models.AddHostInput,
-	options ...models.HostOptionFunc,
-) (*models.AddHostOutput, error) {
+	input *managerModels.AddHostInput,
+	options ...managerModels.HostOptionFunc,
+) (*managerModels.AddHostOutput, error) {
 	return nil, nil
 }
 
 func (m *HostManager) UpdateHost(
 	ctx context.Context,
-	input *models.UpdateHostInput,
-	options ...models.HostOptionFunc,
-) (*models.UpdateHostOutput, error) {
+	input *managerModels.UpdateHostInput,
+	options ...managerModels.HostOptionFunc,
+) (*managerModels.UpdateHostOutput, error) {
 	return nil, nil
 }
 
 func (m *HostManager) RemoveHost(
 	ctx context.Context,
-	input *models.RemoveHostInput,
-	options ...models.HostOptionFunc,
-) (*models.RemoveHostOutput, error) {
+	input *managerModels.RemoveHostInput,
+	options ...managerModels.HostOptionFunc,
+) (*managerModels.RemoveHostOutput, error) {
 	return nil, nil
 }
 
 func (m *HostManager) ListKnownHosts(
 	ctx context.Context,
-	input *models.ListKnownHostsInput,
-	options ...models.HostOptionFunc,
-) (*models.ListKnownHostsOutput, error) {
-	output := &models.ListKnownHostsOutput{}
-	var items []*models.KnownHost
+	input *managerModels.ListKnownHostsInput,
+	options ...managerModels.HostOptionFunc,
+) (*managerModels.ListKnownHostsOutput, error) {
+	output := &managerModels.ListKnownHostsOutput{}
+	var items []*managerModels.KnownHost
 	if input.More == nil {
 		for _, knownHost := range m.hosts.KnownHosts() {
-			items = append(items, &models.KnownHost{File: knownHost})
+			items = append(items, &managerModels.KnownHost{File: knownHost})
 		}
 	} else {
 		items, _ = m.listKnownHostCache.Remove(*input.More)
 	}
-	output.Items, output.More = Page[*models.KnownHost](items, input.PaginationInput, m.listKnownHostCache)
+	output.Items, output.More = Page[*managerModels.KnownHost](items, input.PaginationInput, m.listKnownHostCache)
 	output.Count = len(output.Items)
 	return output, nil
 }
 
-func hostFilter(input models.FiltersInput, host engineModels.Host) bool {
+func hostFilter(input managerModels.FiltersInput, host engineModels.Host) bool {
 	for _, filter := range input.Filters {
 		match := false
 		switch strings.ToLower(filter.Key) {
@@ -149,7 +149,8 @@ func hostFilter(input models.FiltersInput, host engineModels.Host) bool {
 			match = slices.Contains(filter.Values, strconv.FormatBool(host.Valid()))
 		case "metadata.color":
 			match = host.Metadata() != nil && slices.Contains(filter.Values, host.Metadata().Color)
-
+		default:
+			match = true
 		}
 		if !match {
 			return false

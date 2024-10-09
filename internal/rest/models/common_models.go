@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	filtersRegEx = regexp.MustCompile(`(?i)key=([^,]*),values=(.*)`)
+	filtersRegEx = regexp.MustCompile(`(?i)key=([^,]*),value[s]?=(.*)`)
 )
 
 type PaginationInput struct {
@@ -50,7 +50,7 @@ type Filter struct {
 }
 
 type FiltersInput struct {
-	Filters []*Filter `json:"filter,omitempty"`
+	Filters []*Filter `json:"filters,omitempty"`
 }
 
 func (f *FiltersInput) Vars(req *http.Request) {

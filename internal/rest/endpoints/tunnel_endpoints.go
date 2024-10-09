@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/gorilla/mux"
 	managerModels "us.figge.auto-ssh/internal/rest/models"
@@ -27,8 +28,8 @@ func NewTunnelRest(ctx context.Context, manager managerModels.Tunnel, router *mu
 	router.Methods(http.MethodGet).Path("/tunnels/{id}").HandlerFunc(apis.GetTunnel)
 	router.Methods(http.MethodPut).Path("/tunnels/{id}").HandlerFunc(apis.UpdateTunnel)
 	router.Methods(http.MethodDelete).Path("/tunnels/{id}").HandlerFunc(apis.RemoveTunnel)
-	router.Methods(http.MethodDelete).Path("/tunnels/{id}/start").HandlerFunc(apis.StartTunnel)
-	router.Methods(http.MethodDelete).Path("/tunnels/{id}/stop").HandlerFunc(apis.StopTunnel)
+	router.Methods(http.MethodPatch).Path("/tunnels/{id}/start").HandlerFunc(apis.StartTunnel)
+	router.Methods(http.MethodPatch).Path("/tunnels/{id}/stop").HandlerFunc(apis.StopTunnel)
 }
 
 func (a *TunnelRest) ListTunnels(resp http.ResponseWriter, req *http.Request) {
@@ -93,10 +94,37 @@ func (a *TunnelRest) RemoveTunnel(resp http.ResponseWriter, req *http.Request) {
 	resp.Write([]byte(fmt.Sprintf("RemoveTunnel: " + hostName)))
 }
 
-func (a *TunnelRest) StartTunnel(resp http.ResponseWriter, req *http.Request) {}
-func (a *TunnelRest) StopTunnel(resp http.ResponseWriter, req *http.Request)  {}
+func (a *TunnelRest) StartTunnel(resp http.ResponseWriter, req *http.Request) {
+	input := &managerModels.StartTunnelInput{Id: mux.Vars(req)[id]}
+	output, err := a.manager.StartTunnel(req.Context(), input, extractTunnelOptions(req)...)
+	if err != nil {
+		handleErrorResponse(resp, err)
+	}
+	handleOutputResponse(resp, output)
+}
+
+func (a *TunnelRest) StopTunnel(resp http.ResponseWriter, req *http.Request) {
+	input := &managerModels.StopTunnelInput{Id: mux.Vars(req)[id]}
+	output, err := a.manager.StopTunnel(req.Context(), input, extractTunnelOptions(req)...)
+	if err != nil {
+		handleErrorResponse(resp, err)
+	}
+	handleOutputResponse(resp, output)
+}
 
 func extractTunnelOptions(req *http.Request) []managerModels.TunnelOptionFunc {
-	var options []managerModels.TunnelOptionFunc
-	return options
+	var opts []managerModels.TunnelOptionFunc
+	for key, values := range req.URL.Query() {
+		switch key {
+		case "status":
+			if b, err := strconv.ParseBool(values[0]); err == nil {
+				opts = append(opts, managerModels.TunnelOptionStatus(b))
+			}
+		case "metadata":
+			if b, err := strconv.ParseBool(values[0]); err == nil {
+				opts = append(opts, managerModels.TunnelOptionMetadata(b))
+			}
+		}
+	}
+	return opts
 }

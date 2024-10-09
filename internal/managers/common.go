@@ -63,3 +63,11 @@ func contains(sliceA, sliceB []string) bool {
 	}
 	return false
 }
+
+func ExtractTunnelOptions(opts []models.TunnelOptionFunc) *models.TunnelOptions {
+	options := &models.TunnelOptions{}
+	for _, opt := range opts {
+		opt(options)
+	}
+	return options
+}

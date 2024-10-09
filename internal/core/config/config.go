@@ -51,6 +51,12 @@ type Tunnel struct {
 	Remote   *Address  `yaml:"remote" json:"remote"`
 	Host     string    `yaml:"host,omitempty" json:"host,omitempty"`
 	Metadata *Metadata `yaml:"metadata,omitempty" json:"metadata,omitempty"`
+	Status   *Status   `yaml:"status,omitempty" json:"status,omitempty"`
+}
+
+type Status struct {
+	Valid   bool   `json:"valid"`
+	Running string `json:"running"`
 }
 
 type Metadata struct {

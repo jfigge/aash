@@ -13,7 +13,7 @@ import (
 	"net/http"
 	"reflect"
 
-	"us.figge.auto-ssh/internal/rest/managers"
+	managers2 "us.figge.auto-ssh/internal/managers"
 )
 
 const (
@@ -28,9 +28,9 @@ var (
 func handleErrorResponse(resp http.ResponseWriter, err error) {
 	httpStatus := http.StatusInternalServerError
 	switch {
-	case errors.Is(errors.Unwrap(err), managers.ErrHostNotFound):
+	case errors.Is(errors.Unwrap(err), managers2.ErrHostNotFound):
 		httpStatus = http.StatusNotFound
-	case errors.Is(errors.Unwrap(err), managers.ErrTunnelNotFound):
+	case errors.Is(errors.Unwrap(err), managers2.ErrTunnelNotFound):
 		httpStatus = http.StatusNotFound
 	}
 	resp.WriteHeader(httpStatus)

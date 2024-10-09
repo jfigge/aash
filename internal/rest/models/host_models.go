@@ -47,9 +47,10 @@ type Host interface {
 }
 
 type HostHeader struct {
-	Id    string `yaml:"id" json:"id"`
-	Name  string `yaml:"name" json:"name"`
-	Valid bool   `yaml:"valid"json:"valid"`
+	Id      string `yaml:"id" json:"id"`
+	Name    string `yaml:"name" json:"name"`
+	Valid   bool   `yaml:"valid" json:"valid"`
+	Running bool   `yaml:"running" json:"running"`
 }
 
 type KnownHost struct {

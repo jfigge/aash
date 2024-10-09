@@ -31,15 +31,44 @@ type tunnelData struct {
 	host    engineModels.HostInternal
 	conns   []net.Conn
 	stats   *stats.TunnelStats
+	cancel  context.CancelFunc
+	wg      *sync.WaitGroup
 	valid   bool
-	running bool
+	running string
 }
 
 type TunnelEntry struct {
 	tunnelData
 }
 
-func (t *TunnelEntry) Open(ctx context.Context) {
+func (t *TunnelEntry) init(wg *sync.WaitGroup) {
+	t.wg = wg
+}
+
+func (t *TunnelEntry) Start(ctx context.Context) {
+	if t.running != "Stopped" {
+		return
+	}
+	t.wg.Add(1)
+	go func() {
+		defer t.wg.Done()
+		t.open(ctx)
+	}()
+}
+
+func (t *TunnelEntry) Stop(ctx context.Context) {
+	if t.cancel != nil {
+		t.running = "Stopping"
+		t.cancel()
+	}
+}
+
+func (t *TunnelEntry) open(ctx context.Context) {
+	t.running = "Starting"
+	defer func() {
+		t.running = "Stopped"
+	}()
+	ctx, t.cancel = context.WithCancel(ctx)
 	localListener, err := net.Listen("tcp", t.Local().String())
 	if err != nil {
 		fmt.Printf("  Error - tunnel (%s) entrance (%s) cannot be created: %v\n", t.Name(), t.Local().String(), err)
@@ -47,6 +76,7 @@ func (t *TunnelEntry) Open(ctx context.Context) {
 	}
 	fmt.Printf("  Info  - tunnel (%s) entrance opened at %s\n", t.Name(), t.Local().String())
 	go t.waitForTermination(ctx, localListener)
+	t.running = "Started"
 	for {
 		var localConn net.Conn
 		localConn, err = localListener.Accept()
@@ -168,6 +198,10 @@ func (t *TunnelEntry) Host() string {
 func (t *TunnelEntry) Valid() bool {
 	return t.tunnelData.valid
 }
+func (t *TunnelEntry) Running() string {
+	return t.tunnelData.running
+}
+
 func (t *TunnelEntry) Metadata() *config.Metadata {
 	return t.tunnelData.Metadata
 }
@@ -182,6 +216,7 @@ func (t *TunnelEntry) waitForTermination(ctx context.Context, localListener net.
 		_ = conn.Close()
 	}
 	t.conns = []net.Conn{}
+	t.cancel = nil
 }
 
 func (t *TunnelEntry) addConnection(conn net.Conn) {

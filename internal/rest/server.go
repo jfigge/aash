@@ -15,9 +15,9 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
 	"us.figge.auto-ssh/internal/core/config"
+	managers2 "us.figge.auto-ssh/internal/managers"
 	engineModels "us.figge.auto-ssh/internal/resources/models"
 	"us.figge.auto-ssh/internal/rest/endpoints"
-	"us.figge.auto-ssh/internal/rest/managers"
 	managerModels "us.figge.auto-ssh/internal/rest/models"
 )
 
@@ -50,8 +50,8 @@ func NewServer(
 		return nil, err
 	}
 
-	hostMgr, tunnelMgr := s.startManagers(ctx, hosts, tunnels)
-	routers := s.startHandlers(ctx, hostMgr, tunnelMgr)
+	hostMgr, tunnelMgr, metadataMgr := s.startManagers(ctx, hosts, tunnels)
+	routers := s.startHandlers(ctx, hostMgr, tunnelMgr, metadataMgr)
 	err = s.Serve(ctx, routers)
 	if err != nil {
 		return nil, err
@@ -162,22 +162,26 @@ func (s *Server) validateCertKey(v *config.Validations) {
 
 func (s *Server) startManagers(
 	ctx context.Context, hosts engineModels.HostEngine, tunnels engineModels.TunnelEngine,
-) (managerModels.Host, managerModels.Tunnel) {
-	hostManager, tunnelManager, err := s.startManagersE(ctx, hosts, tunnels)
+) (managerModels.Host, managerModels.Tunnel, managerModels.Metadata) {
+	hostManager, tunnelManager, metadataManager, err := s.startManagersE(ctx, hosts, tunnels)
 	if err != nil {
 		fmt.Printf("failed to start managers: %v\n", err)
 		os.Exit(1)
 	}
-	return hostManager, tunnelManager
+	return hostManager, tunnelManager, metadataManager
 }
 func (s *Server) startManagersE(
 	ctx context.Context, hosts engineModels.HostEngine, tunnels engineModels.TunnelEngine,
-) (hostManager managerModels.Host, tunnelManager managerModels.Tunnel, err error) {
-	hostManager, err = managers.NewHostManager(ctx, hosts)
+) (hostManager managerModels.Host, tunnelManager managerModels.Tunnel, metadataManager managerModels.Metadata, err error) {
+	hostManager, err = managers2.NewHostManager(ctx, hosts)
 	if err != nil {
 		return
 	}
-	tunnelManager, err = managers.NewTunnelManager(ctx, tunnels)
+	tunnelManager, err = managers2.NewTunnelManager(ctx, tunnels)
+	if err != nil {
+		return
+	}
+	metadataManager, err = managers2.NewMetadataManager(ctx, tunnels)
 	if err != nil {
 		return
 	}
@@ -185,11 +189,15 @@ func (s *Server) startManagersE(
 }
 
 func (s *Server) startHandlers(
-	ctx context.Context, hostManager managerModels.Host, tunnelManager managerModels.Tunnel,
+	ctx context.Context,
+	hostManager managerModels.Host,
+	tunnelManager managerModels.Tunnel,
+	metadataManager managerModels.Metadata,
 ) *mux.Router {
 	routes := mux.NewRouter()
 	endpoints.NewHostRest(ctx, hostManager, routes)
 	endpoints.NewTunnelRest(ctx, tunnelManager, routes)
+	endpoints.NewMetadataRest(ctx, metadataManager, routes)
 	return routes
 }
 

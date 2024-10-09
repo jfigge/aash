@@ -24,5 +24,8 @@ type Tunnel interface {
 	Remote() *config.Address
 	Host() string
 	Valid() bool
+	Running() string
 	Metadata() *config.Metadata
+	Start(ctx context.Context)
+	Stop(ctx context.Context)
 }

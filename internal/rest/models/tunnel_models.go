@@ -11,8 +11,6 @@ import (
 	"us.figge.auto-ssh/internal/core/config"
 )
 
-type TunnelOptionFunc func(options *TunnelOptions)
-type TunnelOptions struct{}
 type Tunnel interface {
 	ListTunnels(
 		ctx context.Context,
@@ -52,9 +50,9 @@ type Tunnel interface {
 }
 
 type TunnelHeader struct {
-	Id    string `json:"id"`
-	Name  string `json:"name"`
-	Valid bool   `json:"valid"`
+	Id     string         `json:"id"`
+	Name   string         `json:"name"`
+	Status *config.Status `yaml:"status,omitempty" json:"status,omitempty"`
 }
 
 type ListTunnelInput struct {
@@ -89,8 +87,44 @@ type UpdateTunnelOutput struct{}
 type RemoveTunnelInput struct{}
 type RemoveTunnelOutput struct{}
 
-type StartTunnelInput struct{}
-type StartTunnelOutput struct{}
+type StartTunnelInput struct {
+	Id string `json:"id"`
+}
+type StartTunnelOutput struct {
+	Id     string         `json:"id"`
+	Status *config.Status `yaml:"status,omitempty" json:"status,omitempty"`
+}
 
-type StopTunnelInput struct{}
-type StopTunnelOutput struct{}
+type StopTunnelInput struct {
+	Id string `json:"id"`
+}
+type StopTunnelOutput struct {
+	Id     string         `json:"id"`
+	Status *config.Status `yaml:"status,omitempty" json:"status,omitempty"`
+}
+
+type TunnelOptionFunc func(options *TunnelOptions)
+type TunnelOptions struct {
+	status   bool
+	metadata bool
+}
+
+func (t *TunnelOptions) Status() bool {
+	return t.status
+}
+
+func (t *TunnelOptions) Metadata() bool {
+	return t.metadata
+}
+
+func TunnelOptionStatus(status bool) TunnelOptionFunc {
+	return func(options *TunnelOptions) {
+		options.status = status
+	}
+}
+
+func TunnelOptionMetadata(metadata bool) TunnelOptionFunc {
+	return func(options *TunnelOptions) {
+		options.metadata = metadata
+	}
+}
