@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/gorilla/mux"
 	managerModels "us.figge.auto-ssh/internal/rest/models"
@@ -108,6 +109,14 @@ func (a *HostRest) ListKnownHosts(resp http.ResponseWriter, req *http.Request) {
 }
 
 func extractHostOptions(req *http.Request) []managerModels.HostOptionFunc {
-	var options []managerModels.HostOptionFunc
-	return options
+	var opts []managerModels.HostOptionFunc
+	for key, values := range req.URL.Query() {
+		switch key {
+		case "status":
+			if b, err := strconv.ParseBool(values[0]); err == nil {
+				opts = append(opts, managerModels.HostOptionStatus(b))
+			}
+		}
+	}
+	return opts
 }

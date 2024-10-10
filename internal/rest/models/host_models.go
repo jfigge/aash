@@ -11,8 +11,6 @@ import (
 	"us.figge.auto-ssh/internal/core/config"
 )
 
-type HostOptionFunc func(options *HostOptions)
-type HostOptions struct{}
 type Host interface {
 	ListHosts(
 		ctx context.Context,
@@ -109,4 +107,19 @@ type ListKnownHostsOutput struct {
 
 func (i *ListKnownHostsInput) Vars(req *http.Request) {
 	i.PaginationInput.Vars(req)
+}
+
+type HostOptionFunc func(options *HostOptions)
+type HostOptions struct {
+	status bool
+}
+
+func (t *HostOptions) Status() bool {
+	return t.status
+}
+
+func HostOptionStatus(status bool) HostOptionFunc {
+	return func(options *HostOptions) {
+		options.status = status
+	}
 }
