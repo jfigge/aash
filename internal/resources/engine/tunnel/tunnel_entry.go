@@ -23,63 +23,66 @@ var (
 	errInvalidWrite = errors.New("invalid write result")
 	connection      = atomic.Int32{}
 	connections     = atomic.Int32{}
+	wgCount         = atomic.Int32{}
 )
 
 type tunnelData struct {
 	*config.Tunnel
-	lock    sync.Mutex
-	host    engineModels.HostInternal
-	conns   []net.Conn
-	stats   *stats.TunnelStats
-	cancel  context.CancelFunc
-	wg      *sync.WaitGroup
-	valid   bool
-	running string
+	lock   sync.Mutex
+	host   engineModels.HostInternal
+	conns  []net.Conn
+	stats  *stats.TunnelStats
+	cancel context.CancelFunc
+	wg     *sync.WaitGroup
 }
 
 type TunnelEntry struct {
-	tunnelData
+	appCtx context.Context
+	*tunnelData
 }
 
-func (t *TunnelEntry) init(wg *sync.WaitGroup) {
+func (t *TunnelEntry) init(ctx context.Context, wg *sync.WaitGroup) {
+	t.appCtx = ctx
 	t.wg = wg
 }
 
-func (t *TunnelEntry) Start(ctx context.Context) {
-	if t.running != "Stopped" {
+func (t *TunnelEntry) Start() {
+	if t.Status.Running != "Stopped" {
 		return
 	}
-	t.wg.Add(1)
-	go func() {
-		defer t.wg.Done()
-		t.open(ctx)
-	}()
-}
-
-func (t *TunnelEntry) Stop(ctx context.Context) {
-	if t.cancel != nil {
-		t.running = "Stopping"
-		t.cancel()
-	}
-}
-
-func (t *TunnelEntry) open(ctx context.Context) {
-	t.running = "Starting"
-	defer func() {
-		t.running = "Stopped"
-	}()
-	ctx, t.cancel = context.WithCancel(ctx)
+	fmt.Printf("Add: %d\n", wgCount.Load())
+	t.Status.Running = "Starting"
+	var ctx context.Context
+	ctx, t.cancel = context.WithCancel(t.appCtx)
 	localListener, err := net.Listen("tcp", t.Local().String())
 	if err != nil {
 		fmt.Printf("  Error - tunnel (%s) entrance (%s) cannot be created: %v\n", t.Name(), t.Local().String(), err)
 		return
 	}
 	fmt.Printf("  Info  - tunnel (%s) entrance opened at %s\n", t.Name(), t.Local().String())
+	t.wg.Add(1)
+	wgCount.Add(1)
 	go t.waitForTermination(ctx, localListener)
-	t.running = "Started"
+	go t.runningAcceptLoop(ctx, localListener)
+	t.Status.Running = "Started"
+}
+
+func (t *TunnelEntry) Stop() {
+	if t.cancel != nil {
+		t.Status.Running = "Stopping"
+		t.cancel()
+	}
+}
+
+func (t *TunnelEntry) runningAcceptLoop(ctx context.Context, localListener net.Listener) {
+	defer func() {
+		t.Status.Running = "Stopped"
+		t.wg.Done()
+		wgCount.Add(-1)
+		fmt.Printf("Done: %d\n", wgCount.Load())
+	}()
 	for {
-		var localConn net.Conn
-		localConn, err = localListener.Accept()
+		localConn, err := localListener.Accept()
 		if err != nil {
 			var opErr *net.OpError
 			if errors.As(err, &opErr) && opErr.Op == "accept" && opErr.Err.Error() == "use of closed network connection" {
@@ -135,13 +138,13 @@ func (t *TunnelEntry) Validate(he engineModels.HostEngineInternal) bool {
 	t.tunnelData.Name = strings.TrimSpace(t.tunnelData.Name)
 	if t.tunnelData.Name == "" {
 		fmt.Printf("  Error - tunnel name cannot be blank\n")
-		t.valid = false
+		t.Status.Valid = false
 	}
 	if t.tunnelData.Remote == nil || t.tunnelData.Remote.IsBlank() {
 		fmt.Printf("  Error - tunnel (%s) requires a forward address\n", t.tunnelData.Name)
-		t.valid = false
+		t.Status.Valid = false
 	} else if !t.tunnelData.Remote.Validate("tunnel", t.tunnelData.Name, "forward address", true, false) {
-		t.valid = false
+		t.Status.Valid = false
 	}
 
 	if (t.tunnelData.Local == nil || t.tunnelData.Local.IsBlank()) && t.tunnelData.Remote != nil && t.tunnelData.Remote.IsValid() {
@@ -151,7 +154,7 @@ func (t *TunnelEntry) Validate(he engineModels.HostEngineInternal) bool {
 	if t.tunnelData.Local == nil || t.tunnelData.Local.IsBlank() {
 		fmt.Printf("  Error - tunnel (%s) missing a local address that cannot be derived\n", t.tunnelData.Name)
 	} else if !t.tunnelData.Local.Validate("tunnel", t.tunnelData.Name, "local address", true, false) {
-		t.valid = false
+		t.Status.Valid = false
 	}
 
 	t.tunnelData.Host = strings.TrimSpace(t.tunnelData.Host)
@@ -159,16 +162,16 @@ func (t *TunnelEntry) Validate(he engineModels.HostEngineInternal) bool {
 		fmt.Printf("  Info  - tunnel (%s) exits on the local host\n", t.tunnelData.Name)
 	} else if host, ok := he.Host(t.tunnelData.Host); !ok {
 		fmt.Printf("  Error - tunnel (%s) remote host (%s) undefined\n", t.tunnelData.Name, t.tunnelData.Host)
-		t.valid = false
+		t.Status.Valid = false
 	} else if !host.Valid() {
 		fmt.Printf("  Error - tunnel (%s) remote host (%s) is invalid\n", t.tunnelData.Name, t.tunnelData.Host)
-		t.valid = false
-	} else if t.valid {
+		t.Status.Valid = false
+	} else if t.Status.Valid {
 		t.host = host.(engineModels.HostInternal)
 		t.host.Referenced()
 	}
 
-	if config.VerboseFlag && t.valid {
+	if config.VerboseFlag && t.Status.Valid {
 		fmt.Printf("  Info  - tunnel (%s) validated\n", t.tunnelData.Name)
 	}
 
@@ -177,7 +180,7 @@ func (t *TunnelEntry) Validate(he engineModels.HostEngineInternal) bool {
 	//	Port: t.Local.Port(),
 	//}
 
-	return t.valid
+	return t.Status.Valid
 }
 
 func (t *TunnelEntry) Id() string {
@@ -196,12 +199,11 @@ func (t *TunnelEntry) Host() string {
 	return t.tunnelData.Host
 }
 func (t *TunnelEntry) Valid() bool {
-	return t.tunnelData.valid
+	return t.tunnelData.Status.Valid
 }
 func (t *TunnelEntry) Running() string {
-	return t.tunnelData.running
+	return t.tunnelData.Status.Running
 }
-
 func (t *TunnelEntry) Metadata() *config.Metadata {
 	return t.tunnelData.Metadata
 }

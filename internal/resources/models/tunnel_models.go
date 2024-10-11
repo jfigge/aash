@@ -26,6 +26,6 @@ type Tunnel interface {
 	Valid() bool
 	Running() string
 	Metadata() *config.Metadata
-	Start(ctx context.Context)
-	Stop(ctx context.Context)
+	Start()
+	Stop()
 }

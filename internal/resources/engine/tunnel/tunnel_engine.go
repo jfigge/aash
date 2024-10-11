@@ -27,11 +27,13 @@ func NewTunnelEngine(ctx context.Context, he engineModels.HostEngineInternal, tu
 			continue
 		}
 		tunnel := &TunnelEntry{
-			tunnelData: tunnelData{
-				Tunnel:  cfgTunnel,
-				valid:   true,
-				running: "Stopped",
+			tunnelData: &tunnelData{
+				Tunnel: cfgTunnel,
 			},
+		}
+		tunnel.Status = &config.Status{
+			Running: "Stopped",
+			Valid:   true,
 		}
 		tunnel.Validate(he)
 		engine.tunnelEntries[tunnel.tunnelData.Id] = tunnel
@@ -54,10 +56,10 @@ func (te *TunnelEngine) Tunnel(id string) (engineModels.Tunnel, bool) {
 
 func (te *TunnelEngine) StartTunnels(ctx context.Context, wg *sync.WaitGroup) {
 	for _, tunnel := range te.tunnelEntries {
-		tunnel.init(wg)
+		tunnel.init(ctx, wg)
 		if !tunnel.Valid() {
 			continue
 		}
-		tunnel.Start(ctx)
+		tunnel.Start()
 	}
 }

@@ -141,7 +141,7 @@ func (m *TunnelManager) StartTunnel(
 	if strings.EqualFold(tunnel.Running(), "Running") {
 		return nil, fmt.Errorf("%w: %s(%s)", ErrTunnelRunning, tunnel.Name(), input.Id)
 	}
-	tunnel.Start(ctx)
+	tunnel.Start()
 	// TODO Move to function and start with Stop
 	for range 5 {
 		tunnel, _ = m.tunnels.Tunnel(input.Id)
@@ -168,7 +168,7 @@ func (m *TunnelManager) StopTunnel(
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", ErrTunnelNotFound, input.Id)
 	}
-	tunnel.Stop(ctx)
+	tunnel.Stop()
 	tunnel, _ = m.tunnels.Tunnel(input.Id)
 	output := &managerModels.StopTunnelOutput{Id: input.Id}
 	output.Status = &config.Status{
