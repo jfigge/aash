@@ -13,20 +13,20 @@ import (
 	engineModels "us.figge.auto-ssh/internal/resources/models"
 )
 
-type TunnelEngine struct {
-	tunnelEntries map[string]*TunnelEntry
+type Engine struct {
+	tunnelEntries map[string]*Entry
 }
 
-func NewTunnelEngine(ctx context.Context, he engineModels.HostEngineInternal, tunnels []*config.Tunnel) *TunnelEngine {
-	engine := &TunnelEngine{
-		tunnelEntries: make(map[string]*TunnelEntry),
+func NewEngine(ctx context.Context, he engineModels.HostEngineInternal, tunnels []*config.Tunnel) *Engine {
+	engine := &Engine{
+		tunnelEntries: make(map[string]*Entry),
 	}
 	for _, cfgTunnel := range tunnels {
 		if _, ok := engine.tunnelEntries[cfgTunnel.Name]; ok {
 			fmt.Printf("  Error - tunnel name (%s) redfined\n", cfgTunnel.Name)
 			continue
 		}
-		tunnel := &TunnelEntry{
+		tunnel := &Entry{
 			tunnelData: &tunnelData{
 				Tunnel: cfgTunnel,
 			},
@@ -41,7 +41,7 @@ func NewTunnelEngine(ctx context.Context, he engineModels.HostEngineInternal, tu
 	return engine
 }
 
-func (te *TunnelEngine) Tunnels() []engineModels.Tunnel {
+func (te *Engine) Tunnels() []engineModels.Tunnel {
 	tunnels := make([]engineModels.Tunnel, 0, len(te.tunnelEntries))
 	for _, tunnelEntry := range te.tunnelEntries {
 		tunnels = append(tunnels, tunnelEntry)
@@ -49,14 +49,15 @@ func (te *TunnelEngine) Tunnels() []engineModels.Tunnel {
 	return tunnels
 }
 
-func (te *TunnelEngine) Tunnel(id string) (engineModels.Tunnel, bool) {
+func (te *Engine) Tunnel(id string) (engineModels.Tunnel, bool) {
 	tunnel, ok := te.tunnelEntries[id]
 	return tunnel, ok
 }
 
-func (te *TunnelEngine) StartTunnels(ctx context.Context, wg *sync.WaitGroup) {
+func (te *Engine) StartTunnels(ctx context.Context, statsEngine engineModels.StatsEngine, wg *sync.WaitGroup) {
 	for _, tunnel := range te.tunnelEntries {
-		tunnel.init(ctx, wg)
+		statsEntry := statsEngine.NewEntry()
+		tunnel.init(ctx, statsEntry, wg)
 		if !tunnel.Valid() {
 			continue
 		}

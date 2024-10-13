@@ -25,57 +25,57 @@ type hostData struct {
 	client     *ssh.Client
 	config     *ssh.ClientConfig
 }
-type HostEntry struct {
-	hostData
+type Entry struct {
+	*hostData
 }
 
-func (h *HostEntry) Id() string {
+func (h *Entry) Id() string {
 	return h.hostData.Id
 }
-func (h *HostEntry) Name() string {
+func (h *Entry) Name() string {
 	return h.hostData.Name
 }
-func (h *HostEntry) Remote() *config.Address {
+func (h *Entry) Remote() *config.Address {
 	return h.hostData.Remote
 }
-func (h *HostEntry) Username() string {
+func (h *Entry) Username() string {
 	return h.hostData.Username
 }
-func (h *HostEntry) Passphrase() string {
+func (h *Entry) Passphrase() string {
 	return h.hostData.Passphrase
 }
-func (h *HostEntry) Identity() string {
+func (h *Entry) Identity() string {
 	return h.hostData.Identity
 }
-func (h *HostEntry) KnownHosts() string {
+func (h *Entry) KnownHosts() string {
 	return h.hostData.KnownHosts
 }
-func (h *HostEntry) JumpHost() string {
+func (h *Entry) JumpHost() string {
 	return h.hostData.JumpHost
 }
-func (h *HostEntry) Valid() bool {
+func (h *Entry) Valid() bool {
 	return h.hostData.valid
 }
-func (h *HostEntry) Metadata() *config.Metadata {
+func (h *Entry) Metadata() *config.Metadata {
 	return h.hostData.Metadata
 }
-func (h *HostEntry) Referenced() {
+func (h *Entry) Referenced() {
 	h.referenced = true
 }
 
-//func (h *HostEntry) IsJumpHost() bool {
+//func (h *Entry) IsJumpHost() bool {
 //	return h.hostData.isJumpHost
 //}
-//func (h *HostEntry) IsHost() bool {
+//func (h *Entry) IsHost() bool {
 //	return h.hostData.inUse
 //}
 
-func (h *HostEntry) Open() bool {
+func (h *Entry) Open() bool {
 	h.lock.Lock()
 	defer h.lock.Unlock()
 	return h.open()
 }
-func (h *HostEntry) open() bool {
+func (h *Entry) open() bool {
 	if h.client == nil {
 		var err error
 		h.client, err = ssh.Dial("tcp", h.hostData.Remote.String(), h.config)
@@ -87,13 +87,13 @@ func (h *HostEntry) open() bool {
 	return true
 }
 
-func (h *HostEntry) Dial(address string) (net.Conn, bool) {
+func (h *Entry) Dial(address string) (net.Conn, bool) {
 	h.lock.Lock()
 	defer h.lock.Unlock()
 	return h.redial(address, false)
 }
 
-func (h *HostEntry) redial(address string, redialing bool) (net.Conn, bool) {
+func (h *Entry) redial(address string, redialing bool) (net.Conn, bool) {
 	conn, err := h.client.Dial("tcp", address)
 	if err != nil {
 		_ = h.client.Close()
@@ -111,7 +111,7 @@ func (h *HostEntry) redial(address string, redialing bool) (net.Conn, bool) {
 	return conn, true
 }
 
-func (h *HostEntry) Validate(
+func (h *Entry) Validate(
 	defaultUsername string,
 	identityMap map[string]ssh.Signer,
 	hostKeysMap map[string]*HostKeyManager,

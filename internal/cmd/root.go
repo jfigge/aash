@@ -19,23 +19,19 @@ import (
 	"us.figge.auto-ssh/internal/core/config"
 	"us.figge.auto-ssh/internal/core/flag"
 	"us.figge.auto-ssh/internal/resources/engine/host"
-	stats2 "us.figge.auto-ssh/internal/resources/engine/stats"
-	engine2 "us.figge.auto-ssh/internal/resources/engine/tunnel"
+	engineStats "us.figge.auto-ssh/internal/resources/engine/stats"
+	engineTunnel "us.figge.auto-ssh/internal/resources/engine/tunnel"
 	engineModels "us.figge.auto-ssh/internal/resources/models"
 	"us.figge.auto-ssh/internal/rest"
-)
-
-const (
-	envVarPrefix = "ASH"
 )
 
 var (
 	ctx             context.Context
 	cancel          context.CancelFunc
 	server          *rest.Server
-	hosts           engineModels.HostEngineInternal
-	tunnels         engineModels.TunnelEngine
-	stats           engineModels.Stats
+	hostEngine      engineModels.HostEngineInternal
+	tunnelEngine    engineModels.TunnelEngine
+	statsEngine     engineModels.StatsEngine
 	wg              = &sync.WaitGroup{}
 	configFilenames = []string{
 		".auto-ssh.yaml", ".auto-ssh.yml", ".auto-ssh.json",
@@ -127,9 +123,9 @@ func startEngines() {
 	}
 }
 func startEnginesE() error {
-	hosts = host.NewHostEngine(ctx, config.C.Hosts)
-	tunnels = engine2.NewTunnelEngine(ctx, hosts, config.C.Tunnels)
-	stats = stats2.NewStatsEngine()
+	hostEngine = host.NewEngine(ctx, config.C.Hosts)
+	tunnelEngine = engineTunnel.NewEngine(ctx, hostEngine, config.C.Tunnels)
+	statsEngine = engineStats.NewEngine()
 	return nil
 }
 
@@ -141,7 +137,7 @@ func startServer() {
 }
 func startServerE() error {
 	var err error
-	server, err = rest.NewServer(ctx, config.C.Web, hosts, tunnels, wg)
+	server, err = rest.NewServer(ctx, config.C.Web, hostEngine, tunnelEngine, wg)
 	if err != nil {
 		return err
 	}
@@ -149,8 +145,11 @@ func startServerE() error {
 }
 
 func startApplication() {
-	stats.StartStatsTunnel(ctx, config.C.Monitor.StatsPort)
-	tunnels.StartTunnels(ctx, wg)
+	err := statsEngine.StartStatsTunnel(ctx, config.C.Monitor.StatsPort)
+	if err != nil {
+		return
+	}
+	tunnelEngine.StartTunnels(ctx, statsEngine, wg)
 
 	go func() {
 		// Pressing Ctrl+C signals all threads to end. This in turn causes the below wg.Wait() to end

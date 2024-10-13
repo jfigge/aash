@@ -14,15 +14,15 @@ import (
 	engineModels "us.figge.auto-ssh/internal/resources/models"
 )
 
-type HostEngine struct {
-	hostEntries map[string]*HostEntry
+type Engine struct {
+	hostEntries map[string]*Entry
 	identityMap map[string]ssh.Signer
 	hostKeysMap map[string]*HostKeyManager
 }
 
-func NewHostEngine(ctx context.Context, hosts []*config.Host) *HostEngine {
-	engine := &HostEngine{
-		hostEntries: make(map[string]*HostEntry),
+func NewEngine(ctx context.Context, hosts []*config.Host) *Engine {
+	engine := &Engine{
+		hostEntries: make(map[string]*Entry),
 		identityMap: make(map[string]ssh.Signer),
 		hostKeysMap: make(map[string]*HostKeyManager),
 	}
@@ -31,8 +31,8 @@ func NewHostEngine(ctx context.Context, hosts []*config.Host) *HostEngine {
 			fmt.Printf("  Error - host name (%s) redfined\n", cfgHost.Name)
 			continue
 		}
-		host := &HostEntry{
-			hostData: hostData{
+		host := &Entry{
+			hostData: &hostData{
 				Host:  cfgHost,
 				valid: true,
 				inUse: false,
@@ -44,7 +44,7 @@ func NewHostEngine(ctx context.Context, hosts []*config.Host) *HostEngine {
 	return engine
 }
 
-func (he *HostEngine) Hosts() []engineModels.Host {
+func (he *Engine) Hosts() []engineModels.Host {
 	hosts := make([]engineModels.Host, 0, len(he.hostEntries))
 	for _, hostEntry := range he.hostEntries {
 		hosts = append(hosts, hostEntry)
@@ -52,12 +52,12 @@ func (he *HostEngine) Hosts() []engineModels.Host {
 	return hosts
 }
 
-func (he *HostEngine) Host(id string) (engineModels.Host, bool) {
+func (he *Engine) Host(id string) (engineModels.Host, bool) {
 	host, ok := he.hostEntries[id]
 	return host, ok
 }
 
-func (he *HostEngine) KnownHosts() []string {
+func (he *Engine) KnownHosts() []string {
 	knownHosts := make([]string, 0)
 	for _, hostEntry := range he.hostEntries {
 		if hostEntry.hostData.KnownHosts != "" && !slices.Contains(knownHosts, hostEntry.hostData.KnownHosts) {

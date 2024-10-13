@@ -11,19 +11,13 @@ import (
 	"net"
 	"strings"
 	"sync"
-	"sync/atomic"
-	"time"
 
 	"us.figge.auto-ssh/internal/core/config"
-	"us.figge.auto-ssh/internal/resources/engine/stats"
 	engineModels "us.figge.auto-ssh/internal/resources/models"
 )
 
 var (
 	errInvalidWrite = errors.New("invalid write result")
-	connection      = atomic.Int32{}
-	connections     = atomic.Int32{}
-	wgCount         = atomic.Int32{}
 )
 
 type tunnelData struct {
@@ -31,26 +25,26 @@ type tunnelData struct {
 	lock   sync.Mutex
 	host   engineModels.HostInternal
 	conns  []net.Conn
-	stats  *stats.TunnelStats
+	stats  engineModels.Stats
 	cancel context.CancelFunc
 	wg     *sync.WaitGroup
 }
 
-type TunnelEntry struct {
+type Entry struct {
 	appCtx context.Context
 	*tunnelData
 }
 
-func (t *TunnelEntry) init(ctx context.Context, wg *sync.WaitGroup) {
+func (t *Entry) init(ctx context.Context, stats engineModels.Stats, wg *sync.WaitGroup) {
 	t.appCtx = ctx
+	t.stats = stats
 	t.wg = wg
 }
 
-func (t *TunnelEntry) Start() {
+func (t *Entry) Start() {
 	if t.Status.Running != "Stopped" {
 		return
 	}
-	fmt.Printf("Add: %d\n", wgCount.Load())
 	t.Status.Running = "Starting"
 	var ctx context.Context
 	ctx, t.cancel = context.WithCancel(t.appCtx)
@@ -61,25 +55,22 @@ func (t *TunnelEntry) Start() {
 	}
 	fmt.Printf("  Info  - tunnel (%s) entrance opened at %s\n", t.Name(), t.Local().String())
 	t.wg.Add(1)
-	wgCount.Add(1)
 	go t.waitForTermination(ctx, localListener)
 	go t.runningAcceptLoop(ctx, localListener)
 	t.Status.Running = "Started"
 }
 
-func (t *TunnelEntry) Stop() {
+func (t *Entry) Stop() {
 	if t.cancel != nil {
 		t.Status.Running = "Stopping"
 		t.cancel()
 	}
 }
 
-func (t *TunnelEntry) runningAcceptLoop(ctx context.Context, localListener net.Listener) {
+func (t *Entry) runningAcceptLoop(ctx context.Context, localListener net.Listener) {
 	defer func() {
 		t.Status.Running = "Stopped"
 		t.wg.Done()
-		wgCount.Add(-1)
-		fmt.Printf("Done: %d\n", wgCount.Load())
 	}()
 	for {
 		localConn, err := localListener.Accept()
@@ -92,21 +83,16 @@ func (t *TunnelEntry) runningAcceptLoop(ctx context.Context, localListener net.L
 			fmt.Printf("  Error - tunnel (%s) listener accept failed: %v\n", t.Name(), err)
 			return
 		}
-		t.stats.Updated = time.Now()
-		//t.stats.updateChan <- struct{}{}
 		fmt.Printf("  Info  - Connected tunnel: %v\n", t.Name())
 		go t.forward(ctx, localConn)
 	}
 }
 
-func (t *TunnelEntry) forward(ctx context.Context, localConn net.Conn) {
-	t.addConnection(localConn)
+func (t *Entry) forward(ctx context.Context, localConn net.Conn) {
+	id := t.addConnection(localConn)
 	defer t.removeConnection(localConn)
-	connection.Add(1)
-	id := connection.Load()
-
 	if config.VerboseFlag {
-		fmt.Printf("  Info  - tunnel (%s) id:%d conneting to forward server %s\n", t.Name(), id, t.Remote().String())
+		fmt.Printf("  Info  - tunnel (%s) id:%s conneting to forward server %s\n", t.Name(), t.Id(), t.Remote().String())
 	}
 
 	var sshConn net.Conn
@@ -130,11 +116,10 @@ func (t *TunnelEntry) forward(ctx context.Context, localConn net.Conn) {
 			return
 		}
 	}
-
-	NewTunnelConnection(t.Name(), int(id), sshConn, localConn).Start(ctx)
+	NewTunnelConnection(t.Name(), t.Id(), t.stats, sshConn, localConn).Start(ctx)
 }
 
-func (t *TunnelEntry) Validate(he engineModels.HostEngineInternal) bool {
+func (t *Entry) Validate(he engineModels.HostEngineInternal) bool {
 	t.tunnelData.Name = strings.TrimSpace(t.tunnelData.Name)
 	if t.tunnelData.Name == "" {
 		fmt.Printf("  Error - tunnel name cannot be blank\n")
@@ -183,32 +168,32 @@ func (t *TunnelEntry) Validate(he engineModels.HostEngineInternal) bool {
 	return t.Status.Valid
 }
 
-func (t *TunnelEntry) Id() string {
+func (t *Entry) Id() string {
 	return t.tunnelData.Id
 }
-func (t *TunnelEntry) Name() string {
+func (t *Entry) Name() string {
 	return t.tunnelData.Name
 }
-func (t *TunnelEntry) Local() *config.Address {
+func (t *Entry) Local() *config.Address {
 	return t.tunnelData.Local
 }
-func (t *TunnelEntry) Remote() *config.Address {
+func (t *Entry) Remote() *config.Address {
 	return t.tunnelData.Remote
 }
-func (t *TunnelEntry) Host() string {
+func (t *Entry) Host() string {
 	return t.tunnelData.Host
 }
-func (t *TunnelEntry) Valid() bool {
+func (t *Entry) Valid() bool {
 	return t.tunnelData.Status.Valid
 }
-func (t *TunnelEntry) Running() string {
+func (t *Entry) Running() string {
 	return t.tunnelData.Status.Running
 }
-func (t *TunnelEntry) Metadata() *config.Metadata {
+func (t *Entry) Metadata() *config.Metadata {
 	return t.tunnelData.Metadata
 }
 
-func (t *TunnelEntry) waitForTermination(ctx context.Context, localListener net.Listener) {
+func (t *Entry) waitForTermination(ctx context.Context, localListener net.Listener) {
 	<-ctx.Done()
 	fmt.Printf("  Info  - tunnel (%s) stopped listening on %s\n", t.Name(), t.Local().String())
 	_ = localListener.Close()
@@ -221,15 +206,14 @@ func (t *TunnelEntry) waitForTermination(ctx context.Context, localListener net.
 	t.cancel = nil
 }
 
-func (t *TunnelEntry) addConnection(conn net.Conn) {
+func (t *Entry) addConnection(conn net.Conn) int {
 	t.lock.Lock()
 	defer t.lock.Unlock()
-	t.stats.Connected++
-	t.stats.Connections++
 	t.conns = append(t.conns, conn)
+	return t.stats.Connected()
 }
 
-func (t *TunnelEntry) removeConnection(conn net.Conn) {
+func (t *Entry) removeConnection(conn net.Conn) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 	conns := make([]net.Conn, 0, len(t.conns)-1)
@@ -239,6 +223,6 @@ func (t *TunnelEntry) removeConnection(conn net.Conn) {
 		}
 	}
 	_ = conn.Close()
-	t.stats.Connected--
+	t.stats.Disconnected()
 	t.conns = conns
 }

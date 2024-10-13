@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"us.figge.auto-ssh/internal/core/config"
+	engineModels "us.figge.auto-ssh/internal/resources/models"
 )
 
 var (
@@ -21,39 +22,25 @@ var (
 	interval = time.Second * 5
 )
 
-type TunnelStats struct {
-	Id          int       `json:"i" title:"Id"   format:"%%%ds "  sort:"%[2]s%[1]s"`
-	Name        string    `json:"n" title:"Name" format:"%%-%ds " sort:"%[1]s%[2]s"`
-	Port        int       `json:"p" title:"Port" format:"%%%ds "  sort:"%[2]s%[1]s"`
-	Received    int64     `json:"r" title:"Rcvd" format:"%%%ds "  sort:"%[2]s%[1]s"`
-	Transmitted int64     `json:"t" title:"Sent" format:"%%%ds "  sort:"%[2]s%[1]s"`
-	Connected   int       `json:"o" title:"Open" format:"%%%ds "  sort:"%[2]s%[1]s"`
-	Connections int       `json:"c" title:"Used" format:"%%%ds "  sort:"%[2]s%[1]s"`
-	JumpTunnel  bool      `json:"j" title:"Jump" format:"%%%ds "  sort:"%[2]s%[1]s"`
-	Updated     time.Time `json:"u" title:"Last" format:"%%-%ds " sort:"%[1]s%[2]s"`
-	updateChan  chan struct{}
-	// private properties must be listed last
-}
-
-type StatsEngine struct {
+type Engine struct {
 	lock          sync.Mutex
 	statsAddress  string
 	statsListener net.Listener
 	connections   []net.Conn
-	tunnelStats   []*TunnelStats
+	tunnelStats   []*Entry
 	updateChan    chan struct{}
 	lastUpdate    []byte
 	updated       bool
 }
 
-func NewStatsEngine() *StatsEngine {
-	s := &StatsEngine{
+func NewEngine() *Engine {
+	s := &Engine{
 		updateChan: make(chan struct{}),
 	}
 	return s
 }
 
-func (s *StatsEngine) StartStatsTunnel(ctx context.Context, port int) error {
+func (s *Engine) StartStatsTunnel(ctx context.Context, port int) error {
 	if config.C.Monitor.StatsPort != -1 {
 		var err error
 		s.statsAddress = fmt.Sprintf("127.0.0.1:%d", port)
@@ -67,7 +54,14 @@ func (s *StatsEngine) StartStatsTunnel(ctx context.Context, port int) error {
 	return nil
 }
 
-func (s *StatsEngine) statsTransmitter(ctx context.Context, port int) {
+func (s *Engine) NewEntry() engineModels.Stats {
+	return &Entry{
+		statsData:  &statsData{},
+		updateChan: s.updateChan,
+	}
+}
+
+func (s *Engine) statsTransmitter(ctx context.Context, port int) {
 	fmt.Printf("  Info  - auto-ssh stats listening on %d\n", port)
 	go s.statsBroadcaster(ctx)
 	for {
@@ -88,7 +82,7 @@ func (s *StatsEngine) statsTransmitter(ctx context.Context, port int) {
 	}
 }
 
-func (s *StatsEngine) statsBroadcaster(ctx context.Context) {
+func (s *Engine) statsBroadcaster(ctx context.Context) {
 	lastBroadcast := time.Now().Add(-interval)
 	for {
 		select {
@@ -121,7 +115,7 @@ func (s *StatsEngine) statsBroadcaster(ctx context.Context) {
 	}
 }
 
-func (s *StatsEngine) writeUpdate(update []byte) {
+func (s *Engine) writeUpdate(update []byte) {
 	if !s.lock.TryLock() {
 		return
 	}
@@ -144,7 +138,7 @@ func (s *StatsEngine) writeUpdate(update []byte) {
 	}
 }
 
-func (s *StatsEngine) addConnection(conn net.Conn) {
+func (s *Engine) addConnection(conn net.Conn) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	_, err := conn.Write(s.lastUpdate)
@@ -154,7 +148,7 @@ func (s *StatsEngine) addConnection(conn net.Conn) {
 	s.connections = append(s.connections, conn)
 }
 
-func (s *StatsEngine) closeAllConnections() {
+func (s *Engine) closeAllConnections() {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	for _, conn := range s.connections {
