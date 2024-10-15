@@ -11,6 +11,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"us.figge.auto-ssh/internal/core/config"
 	engineModels "us.figge.auto-ssh/internal/resources/models"
@@ -18,93 +19,94 @@ import (
 
 var (
 	errInvalidWrite = errors.New("invalid write result")
+	connectionIds   = atomic.Int32{}
 )
 
 type tunnelData struct {
 	*config.Tunnel
-	lock   sync.Mutex
-	host   engineModels.HostInternal
-	conns  []net.Conn
-	stats  engineModels.Stats
-	cancel context.CancelFunc
-	wg     *sync.WaitGroup
+	ctx        context.Context
+	wg         *sync.WaitGroup
+	stats      engineModels.Stats
+	lock       *sync.Mutex
+	localConns map[int32]*connection
+	host       engineModels.HostInternal
+	listener   net.Listener
 }
 
 type Entry struct {
-	appCtx context.Context
+	//	appCtx context.Context
 	*tunnelData
 }
 
 func (t *Entry) init(ctx context.Context, stats engineModels.Stats, wg *sync.WaitGroup) {
-	t.appCtx = ctx
+	t.ctx = ctx
 	t.stats = stats
 	t.wg = wg
+	t.lock = &sync.Mutex{}
+	t.localConns = make(map[int32]*connection)
 }
 
 func (t *Entry) Start() {
 	if t.Status.Running != "Stopped" {
 		return
 	}
+	var err error
 	t.Status.Running = "Starting"
-	var ctx context.Context
-	ctx, t.cancel = context.WithCancel(t.appCtx)
-	localListener, err := net.Listen("tcp", t.Local().String())
+	t.listener, err = net.Listen("tcp", t.Local().String())
 	if err != nil {
 		fmt.Printf("  Error - tunnel (%s) entrance (%s) cannot be created: %v\n", t.Name(), t.Local().String(), err)
+		t.Status.Running = "Stopped"
 		return
 	}
 	fmt.Printf("  Info  - tunnel (%s) entrance opened at %s\n", t.Name(), t.Local().String())
 	t.wg.Add(1)
-	go t.waitForTermination(ctx, localListener)
-	go t.runningAcceptLoop(ctx, localListener)
+	go t.runningAcceptLoop()
 	t.Status.Running = "Started"
 }
 
 func (t *Entry) Stop() {
-	if t.cancel != nil {
+	if t.listener != nil {
 		t.Status.Running = "Stopping"
-		t.cancel()
+		t.listener.Close()
+		t.listener = nil
+	}
+	for _, localConn := range t.localConns {
+		localConn.Stop()
 	}
 }
 
-func (t *Entry) runningAcceptLoop(ctx context.Context, localListener net.Listener) {
+func (t *Entry) runningAcceptLoop() {
 	defer func() {
 		t.Status.Running = "Stopped"
 		t.wg.Done()
 	}()
 	for {
-		localConn, err := localListener.Accept()
+		localConn, err := t.listener.Accept()
 		if err != nil {
 			var opErr *net.OpError
 			if errors.As(err, &opErr) && opErr.Op == "accept" && opErr.Err.Error() == "use of closed network connection" {
-				// Close quietly and we're likely shutting down
+				fmt.Printf("  Info  - tunnel (%s) closed\n", t.Name())
 				return
 			}
 			fmt.Printf("  Error - tunnel (%s) listener accept failed: %v\n", t.Name(), err)
 			return
 		}
 		fmt.Printf("  Info  - Connected tunnel: %v\n", t.Name())
-		go t.forward(ctx, localConn)
+		go t.forward(localConn)
 	}
 }
 
-func (t *Entry) forward(ctx context.Context, localConn net.Conn) {
-	id := t.addConnection(localConn)
-	defer t.removeConnection(localConn)
-	if config.VerboseFlag {
-		fmt.Printf("  Info  - tunnel (%s) id:%s conneting to forward server %s\n", t.Name(), t.Id(), t.Remote().String())
-	}
-
+func (t *Entry) forward(localConn net.Conn) {
 	var sshConn net.Conn
 	if t.host != nil {
 		if !t.host.(engineModels.HostInternal).Open() {
-			// TODO Failed to connect
+			fmt.Printf("  Error - tunnel (%s) unable to open remote connection %s\n", t.Name(), t.Remote())
 			return
 		}
 		var ok bool
 		sshConn, ok = t.host.(engineModels.HostInternal).Dial(t.Remote().String())
 		if !ok {
-			// TODO failed to connect
+			fmt.Printf("  Error - tunnel (%s) unable to dial remote connection %s\n", t.Name(), t.Remote())
 			return
 		}
 	} else {
@@ -112,11 +114,27 @@ func (t *Entry) forward(ctx context.Context, localConn net.Conn) {
 		var err error
 		sshConn, err = net.Dial("tcp", t.Remote().String())
 		if err != nil {
-			fmt.Printf("  Error - tunnel (%s) id:%d unable to forward to server %s\n", t.Name(), id, t.Remote().String())
+			fmt.Printf("  Error - tunnel (%s) unable to forward to server %s\n", t.Name(), t.Remote())
 			return
 		}
 	}
-	NewTunnelConnection(t.Name(), t.Id(), t.stats, sshConn, localConn).Start(ctx)
+	if config.VerboseFlag {
+		fmt.Printf("  Info  - tunnel (%s) id:%s connecting to forward server %s\n", t.Name(), t.Id(), t.Remote().String())
+	}
+
+	id := connectionIds.Add(1)
+	t.localConns[id] = &connection{
+		id:        id,
+		ctx:       t.ctx,
+		name:      t.Name(),
+		stats:     t.stats,
+		localConn: localConn,
+		sshConn:   sshConn,
+	}
+	defer func() {
+		delete(t.localConns, id)
+	}()
+	t.localConns[id].Start()
 }
 
 func (t *Entry) Validate(he engineModels.HostEngineInternal) bool {
@@ -167,7 +185,6 @@ func (t *Entry) Validate(he engineModels.HostEngineInternal) bool {
 
 	return t.Status.Valid
 }
-
 func (t *Entry) Id() string {
 	return t.tunnelData.Id
 }
@@ -191,38 +208,4 @@ func (t *Entry) Running() string {
 }
 func (t *Entry) Metadata() *config.Metadata {
 	return t.tunnelData.Metadata
-}
-
-func (t *Entry) waitForTermination(ctx context.Context, localListener net.Listener) {
-	<-ctx.Done()
-	fmt.Printf("  Info  - tunnel (%s) stopped listening on %s\n", t.Name(), t.Local().String())
-	_ = localListener.Close()
-	t.lock.Lock()
-	defer t.lock.Unlock()
-	for _, conn := range t.conns {
-		_ = conn.Close()
-	}
-	t.conns = []net.Conn{}
-	t.cancel = nil
-}
-
-func (t *Entry) addConnection(conn net.Conn) int {
-	t.lock.Lock()
-	defer t.lock.Unlock()
-	t.conns = append(t.conns, conn)
-	return t.stats.Connected()
-}
-
-func (t *Entry) removeConnection(conn net.Conn) {
-	t.lock.Lock()
-	defer t.lock.Unlock()
-	conns := make([]net.Conn, 0, len(t.conns)-1)
-	for _, c := range t.conns {
-		if conn != c {
-			conns = append(conns, c)
-		}
-	}
-	_ = conn.Close()
-	t.stats.Disconnected()
-	t.conns = conns
 }

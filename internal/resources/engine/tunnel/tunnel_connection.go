@@ -13,64 +13,45 @@ import (
 	"time"
 
 	"us.figge.auto-ssh/internal/core/config"
-	engineModels "us.figge.auto-ssh/internal/resources/models"
+	"us.figge.auto-ssh/internal/resources/models"
 )
 
-type tunnelConn struct {
-	id        string
+type connection struct {
+	id        int32
 	name      string
-	stats     engineModels.Stats
-	conns     [2]net.Conn
-	connected [2]bool
+	ctx       context.Context
+	stats     models.Stats
+	localConn net.Conn
+	sshConn   net.Conn
 }
 
-func NewTunnelConnection(name string, id string, stats engineModels.Stats, sshConn net.Conn, localConn net.Conn) *tunnelConn {
-	return &tunnelConn{
-		name:      name,
-		id:        id,
-		stats:     stats,
-		conns:     [2]net.Conn{localConn, sshConn},
-		connected: [2]bool{true, true},
-	}
-}
-
-func (t *tunnelConn) Start(ctx context.Context) {
-	tunnelCtx, cancel := context.WithCancel(ctx)
+func (c *connection) Start() {
 	wg := &sync.WaitGroup{}
 	wg.Add(2)
 	go func() {
-		t.send(tunnelCtx, 0, "send")
+		c.transcieve(c.localConn, c.sshConn, true, "local => remove")
+		c.autoClose()
 		wg.Done()
 	}()
 	go func() {
-		t.send(tunnelCtx, 1, "receive")
+		c.transcieve(c.sshConn, c.localConn, false, "remove => local")
+		c.autoClose()
 		wg.Done()
 	}()
 	wg.Wait()
-	cancel()
+}
+
+func (c *connection) transcieve(src net.Conn, dest net.Conn, read bool, name string) {
 	if config.VerboseFlag {
-		fmt.Printf("  Info  - id:%s closing connection %s\n", t.id, t.conns[0].RemoteAddr())
+		fmt.Printf("  Info  - tunnel (%s) id:%d started %s\n", c.name, c.id, name)
+	}
+	c.copy(src, dest, read)
+	if config.VerboseFlag {
+		fmt.Printf("  Info  - tunnel (%s) id:%d stopped %s\n", c.name, c.id, name)
 	}
 }
 
-func (t *tunnelConn) send(ctx context.Context, index int, name string) {
-	if config.VerboseFlag {
-		fmt.Printf("  Info  - tunnel (%s) id:%s %s tunnel opened\n", t.name, t.id, name)
-	}
-	err := t.copy(t.conns[index], t.conns[1-index], index == 0)
-	if err != nil && config.VerboseFlag {
-		fmt.Printf("  Error - tunnel (%s) id:%s encountered a closed tunnel: %v\n", t.name, t.id, err)
-	}
-	t.connected[index] = false
-	if config.VerboseFlag {
-		fmt.Printf("  Info  - tunnel (%s) id:%s %s tunnel closed\n", t.name, t.id, name)
-	}
-	if t.connected[1-index] {
-		go t.autoClose(ctx)
-	}
-}
-
-func (t *tunnelConn) copy(src io.Reader, dst io.Writer, read bool) (err error) {
+func (c *connection) copy(src io.Reader, dst io.Writer, read bool) (err error) {
 	buf := make([]byte, 32*1024)
 	for {
 		nr, er := src.Read(buf)
@@ -84,11 +65,11 @@ func (t *tunnelConn) copy(src io.Reader, dst io.Writer, read bool) (err error) {
 				}
 			}
 			if read {
-				t.stats.Received(int64(nw))
+				c.stats.Received(int64(nw))
 			} else {
-				t.stats.Transmitted(int64(nw))
+				c.stats.Transmitted(int64(nw))
 			}
-			t.stats.Updated()
+			c.stats.Updated()
 
 			if ew != nil {
 				err = ew
@@ -109,23 +90,28 @@ func (t *tunnelConn) copy(src io.Reader, dst io.Writer, read bool) (err error) {
 	return err
 }
 
-func (t *tunnelConn) autoClose(ctx context.Context) {
+func (c *connection) Stop() {
+	c.autoClose()
+}
+
+func (c *connection) autoClose() {
 	status := "terminated"
 	if config.VerboseFlag {
-		fmt.Printf("  Info  - tunnel (%s) id:%s auto-closer initiated\n", t.name, t.id)
+		fmt.Printf("  Info  - tunnel (%s) id:%d auto-closer initiated\n", c.name, c.id)
 	}
 	timer := time.NewTimer(30 * time.Second)
 	select {
 	case <-timer.C:
 		status = "triggered"
-	case <-ctx.Done():
+	case <-c.ctx.Done():
 	}
-	for i := range 2 {
-		if t.conns[i] != nil {
-			_ = t.conns[i].Close()
-		}
+	if c.sshConn != nil {
+		_ = c.sshConn.Close()
+	}
+	if c.localConn != nil {
+		_ = c.localConn.Close()
 	}
 	if config.VerboseFlag {
-		fmt.Printf("  Info  - tunnel (%s) id:%s auto-closer %s\n", t.name, t.id, status)
+		fmt.Printf("  Info  - tunnel (%s) id:%s auto-closer %s\n", c.name, c.id, status)
 	}
 }

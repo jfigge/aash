@@ -51,7 +51,7 @@ tunnels:
   - id: 04
     name: Review Ping Federate UI
     local: 8999
-    host: 01
+    host: 04
     remote: 172.21.194.80:9999
     metadata:
       tags:
