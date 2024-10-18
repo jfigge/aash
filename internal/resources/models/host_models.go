@@ -8,6 +8,7 @@ import (
 	"net"
 
 	"us.figge.auto-ssh/internal/core/config"
+	engineTunnel "us.figge.auto-ssh/internal/resources/engine/tunnel"
 )
 
 type HostEngine interface {
@@ -18,6 +19,7 @@ type HostEngine interface {
 
 type HostEngineInternal interface {
 	HostEngine
+	ValidateJumpHosts(tunnelEntries map[string]*engineTunnel.Entry)
 }
 
 type Host interface {

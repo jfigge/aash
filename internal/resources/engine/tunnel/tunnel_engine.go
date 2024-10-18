@@ -40,6 +40,7 @@ func NewEngine(ctx context.Context, he engineModels.HostEngineInternal, tunnels 
 		tunnel.Validate(he)
 		engine.tunnelEntries[tunnel.tunnelData.Id] = tunnel
 	}
+	he.ValidateJumpHosts(engine.tunnelEntries)
 	return engine
 }
 
@@ -50,6 +51,7 @@ func (te *Engine) Tunnels() []engineModels.Tunnel {
 	}
 	return tunnels
 }
+
 func (te *Engine) Tunnel(id string) (engineModels.Tunnel, bool) {
 	tunnel, ok := te.tunnelEntries[id]
 	return tunnel, ok

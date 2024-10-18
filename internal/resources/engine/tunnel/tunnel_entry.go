@@ -46,6 +46,25 @@ func (t *Entry) init(ctx context.Context, stats engineModels.Stats, wg *sync.Wai
 	t.localConns = make(map[int32]*connection)
 }
 
+func NewTunnel(name, jumpHost string, local, remote *config.Address) *Entry {
+	return &Entry{
+		&tunnelData{
+			Tunnel: &config.Tunnel{
+				Id:       "",
+				Name:     name,
+				Local:    local,
+				Remote:   remote,
+				Host:     jumpHost,
+				Metadata: &config.Metadata{},
+				Status: &config.Status{
+					Valid:   true,
+					Running: "Stopped",
+				},
+			},
+		},
+	}
+}
+
 func (t *Entry) Start() {
 	if t.Status.Running != "Stopped" {
 		return
@@ -100,7 +119,7 @@ func (t *Entry) forward(localConn net.Conn) {
 	var sshConn net.Conn
 	if t.host != nil {
 		if !t.host.(engineModels.HostInternal).Open() {
-			fmt.Printf("  Error - tunnel (%s) unable to open remote connection %s\n", t.Name(), t.Remote())
+			fmt.Printf("  Error - tunnel (%s) unable to open remote connection %s\n", t.Name(), t.Host())
 			return
 		}
 		var ok bool

@@ -71,8 +71,8 @@ func (h *Entry) Referenced() {
 //}
 
 func (h *Entry) Open() bool {
-	h.lock.Lock()
-	defer h.lock.Unlock()
+	//h.lock.Lock()
+	//defer h.lock.Unlock()
 	return h.open()
 }
 func (h *Entry) open() bool {
